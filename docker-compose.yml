@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.backend
+    container_name: learnforge_backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=development
+      - DEBUG=True
+      - DATABASE_URL=sqlite+aiosqlite:////app/data/learnforge.db
+      - CHROMA_PERSIST_DIRECTORY=/app/chroma_data
+      - UPLOAD_DIR=/app/uploads
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - LOCAL_MODEL=qwen2.5:7b
+      - EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
+    volumes:
+      - ./backend:/app
+      - backend_data:/app/data
+      - backend_uploads:/app/uploads
+      - backend_chroma:/app/chroma_data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  backend_data:
+  backend_uploads:
+  backend_chroma:

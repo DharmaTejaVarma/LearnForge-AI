@@ -1,0 +1,306 @@
+import React, { useState, useEffect } from 'react';
+import { Card } from '../../components/common/Card';
+import { Button } from '../../components/common/Button';
+import { Spinner } from '../../components/common/Spinner';
+import { courseService, Course } from '../../services/courseService';
+import { documentService, UploadedDocument } from '../../services/documentService';
+import { formatDocumentTitle } from '../../utils/formatters';
+import { 
+  BookOpen, 
+  Clock, 
+  Trash2, 
+  Sparkles, 
+  Plus, 
+  ChevronRight,
+  GraduationCap,
+  Target,
+  AlertCircle
+} from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+
+export const Courses: React.FC = () => {
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [documents, setDocuments] = useState<UploadedDocument[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isGenerating, setIsGenerating] = useState<boolean>(false);
+  const [selectedDocId, setSelectedDocId] = useState<number | null>(null);
+  const [selectedDifficulty, setSelectedDifficulty] = useState<string>('intermediate');
+  const [showModal, setShowModal] = useState<boolean>(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const navigate = useNavigate();
+
+  const loadData = async () => {
+    try {
+      const [coursesData, docsData] = await Promise.all([
+        courseService.list(),
+        documentService.list(),
+      ]);
+      setCourses(coursesData);
+      setDocuments(docsData);
+      if (docsData.length > 0 && !selectedDocId) {
+        setSelectedDocId(docsData[0].id);
+      }
+    } catch (err) {
+      console.error('Failed to load courses:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const handleGenerate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedDocId) return;
+
+    setIsGenerating(true);
+    setErrorMessage(null);
+    try {
+      const newCourse = await courseService.generate(selectedDocId, selectedDifficulty);
+      setShowModal(false);
+      await loadData();
+      navigate(`/courses/${newCourse.id}`);
+    } catch (err: any) {
+      const msg = err.response?.data?.error?.message || err.response?.data?.detail || err.message || 'Failed to synthesize course.';
+      setErrorMessage(msg);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleDelete = async (id: number, title: string) => {
+    if (!window.confirm(`Delete course "${title}"? This cannot be undone.`)) return;
+    try {
+      await courseService.delete(id);
+      setCourses((prev) => prev.filter((c) => c.id !== id));
+    } catch (err: any) {
+      alert('Failed to delete course: ' + (err.response?.data?.error?.message || err.message));
+    }
+  };
+
+  const getDifficultyBadge = (diff: string) => {
+    switch (diff?.toLowerCase()) {
+      case 'beginner':
+        return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+      case 'advanced':
+        return 'bg-amber-500/10 text-amber-400 border-amber-500/20';
+      default:
+        return 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20';
+    }
+  };
+
+  return (
+    <div className="space-y-8 animate-fadeIn">
+      {/* Page Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight">
+            Curated Courses
+          </h1>
+          <p className="text-sm text-slate-400 mt-1">
+            Structured syllabi, chapters, and modular lessons synthesized from your documents
+          </p>
+        </div>
+
+        <Button
+          variant="primary"
+          onClick={() => {
+            setErrorMessage(null);
+            setShowModal(true);
+          }}
+          icon={<Plus className="h-4 w-4" />}
+          disabled={documents.length === 0}
+          className="shadow-lg shadow-indigo-600/30"
+        >
+          Synthesize New Course
+        </Button>
+      </div>
+
+      {documents.length === 0 && !isLoading && (
+        <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-sm flex items-center justify-between">
+          <span>You need to upload at least one document before synthesizing a course.</span>
+          <Button size="sm" variant="outline" onClick={() => navigate('/documents')}>
+            Go to Documents
+          </Button>
+        </div>
+      )}
+
+      {isLoading ? (
+        <div className="py-20 flex flex-col items-center justify-center space-y-3">
+          <Spinner size="lg" />
+          <p className="text-sm text-slate-400">Loading your learning tracks...</p>
+        </div>
+      ) : courses.length === 0 ? (
+        <Card className="p-12 text-center bg-slate-900 border-slate-800 space-y-4">
+          <div className="h-16 w-16 rounded-2xl bg-indigo-600/10 border border-indigo-500/20 flex items-center justify-center mx-auto text-indigo-400">
+            <GraduationCap className="h-8 w-8" />
+          </div>
+          <div>
+            <h3 className="text-lg font-bold text-white">No courses generated yet</h3>
+            <p className="text-xs md:text-sm text-slate-400 max-w-md mx-auto mt-1">
+              Select any uploaded document (PDF, DOCX, TXT, PPTX, or Markdown) to let our AI synthesize an outline with chapters, learning objectives, and comprehensive lessons.
+            </p>
+          </div>
+          <div className="pt-2">
+            <Button
+              variant="primary"
+              onClick={() => {
+                setErrorMessage(null);
+                setShowModal(true);
+              }}
+              icon={<Sparkles className="h-4 w-4" />}
+              disabled={documents.length === 0}
+            >
+              Synthesize Your First Course
+            </Button>
+          </div>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {courses.map((course) => (
+            <Card
+              key={course.id}
+              className="flex flex-col justify-between bg-slate-900/90 border-slate-800 hover:border-indigo-500/40 transition-all duration-200 group p-6 shadow-xl"
+            >
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <span
+                    className={`text-[11px] font-semibold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${getDifficultyBadge(
+                      course.difficulty_level
+                    )}`}
+                  >
+                    {course.difficulty_level || 'Intermediate'}
+                  </span>
+                  <button
+                    onClick={() => handleDelete(course.id, course.title)}
+                    className="text-slate-500 hover:text-rose-400 p-1.5 rounded-lg hover:bg-slate-800 transition-colors"
+                    title="Delete course"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <div>
+                  <h3 className="text-lg font-bold text-white group-hover:text-indigo-400 transition-colors line-clamp-1">
+                    {course.title}
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-1.5 line-clamp-2 leading-relaxed">
+                    {course.description}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-4 text-xs text-slate-400 pt-3 border-t border-slate-800">
+                  <span className="flex items-center gap-1.5">
+                    <Clock className="h-3.5 w-3.5 text-indigo-400" />
+                    ~{course.estimated_duration_hours || 4}h
+                  </span>
+                  {course.learning_objectives && course.learning_objectives.length > 0 && (
+                    <span className="flex items-center gap-1.5">
+                      <Target className="h-3.5 w-3.5 text-emerald-400" />
+                      {course.learning_objectives.length} Objectives
+                    </span>
+                  )}
+                  <span className="flex items-center gap-1.5">
+                    <BookOpen className="h-3.5 w-3.5 text-purple-400" />
+                    Modular
+                  </span>
+                </div>
+              </div>
+
+              <div className="pt-6">
+                <Button
+                  variant="secondary"
+                  className="w-full justify-between group-hover:bg-indigo-600 group-hover:text-white group-hover:border-indigo-600 transition-all text-xs font-semibold"
+                  onClick={() => navigate(`/courses/${course.id}`)}
+                >
+                  <span>Explore Course & Lessons</span>
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Course Synthesis Modal */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-6 shadow-2xl">
+            <div>
+              <div className="flex items-center gap-2 text-indigo-400 mb-1">
+                <Sparkles className="h-5 w-5" />
+                <h3 className="text-xl font-bold text-white">Synthesize Course</h3>
+              </div>
+              <p className="text-xs text-slate-400">
+                Our RAG Pipeline and Document Agent analyze your file to synthesize a grounded curriculum.
+              </p>
+            </div>
+
+            {errorMessage && (
+              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                <span>{errorMessage}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleGenerate} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  Source Educational Document
+                </label>
+                <select
+                  value={selectedDocId || ''}
+                  onChange={(e) => setSelectedDocId(Number(e.target.value))}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-xs md:text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  required
+                >
+                  {documents.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {formatDocumentTitle(d.original_filename)} ({d.page_count} pages)
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  Pedagogical Difficulty
+                </label>
+                <select
+                  value={selectedDifficulty}
+                  onChange={(e) => setSelectedDifficulty(e.target.value)}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-xs md:text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                >
+                  <option value="beginner">Beginner (Foundations & Concepts)</option>
+                  <option value="intermediate">Intermediate (Deep Dive & Applications)</option>
+                  <option value="advanced">Advanced (Critical Analysis & Synthesis)</option>
+                </select>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-3">
+                <Button
+                  variant="ghost"
+                  onClick={() => setShowModal(false)}
+                  type="button"
+                  disabled={isGenerating}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="primary"
+                  type="submit"
+                  isLoading={isGenerating}
+                  icon={<Sparkles className="h-4 w-4" />}
+                >
+                  {isGenerating ? 'Synthesizing...' : 'Start Synthesis'}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
