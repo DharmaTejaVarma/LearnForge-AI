@@ -46,7 +46,12 @@ class LessonQualityGate:
     FILE_EXTENSION_RE = re.compile(r"\b\w+\.(pdf|docx|pptx|txt|md)\b", re.IGNORECASE)
 
     @classmethod
-    def check(cls, lesson_content: str, source_text: str = "") -> Tuple[bool, List[str]]:
+    def check(
+        cls,
+        lesson_content: str,
+        source_text: str = "",
+        subtopics: List[str] | None = None,
+    ) -> Tuple[bool, List[str]]:
         """
         Returns (passed: bool, reasons: List[str]).
         
@@ -91,6 +96,15 @@ class LessonQualityGate:
                 reasons.append(
                     f"Too much verbatim overlap with source: {ratio:.1%} (max {cls.MAX_VERBATIM_SHINGLE_RATIO:.0%})"
                 )
+
+        # 7. Subtopic coverage check (when source subtopics are specified)
+        if subtopics:
+            missing_subs = [
+                s for s in subtopics
+                if not any(tok in lower for tok in re.findall(r"[a-z0-9]{3,}", s.lower()))
+            ]
+            if len(missing_subs) > len(subtopics) // 2 and len(missing_subs) > 0:
+                reasons.append(f"Missing coverage of source subtopics: {missing_subs}")
 
         passed = len(reasons) == 0
         return passed, reasons

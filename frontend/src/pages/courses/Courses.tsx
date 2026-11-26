@@ -25,6 +25,7 @@ export const Courses: React.FC = () => {
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [selectedDocId, setSelectedDocId] = useState<number | null>(null);
   const [selectedDifficulty, setSelectedDifficulty] = useState<string>('intermediate');
+  const [targetChapters, setTargetChapters] = useState<number>(18);
   const [showModal, setShowModal] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const navigate = useNavigate();
@@ -58,7 +59,7 @@ export const Courses: React.FC = () => {
     setIsGenerating(true);
     setErrorMessage(null);
     try {
-      const newCourse = await courseService.generate(selectedDocId, selectedDifficulty);
+      const newCourse = await courseService.generate(selectedDocId, selectedDifficulty, targetChapters);
       setShowModal(false);
       await loadData();
       navigate(`/courses/${newCourse.id}`);
@@ -276,6 +277,23 @@ export const Courses: React.FC = () => {
                   <option value="beginner">Beginner (Foundations & Concepts)</option>
                   <option value="intermediate">Intermediate (Deep Dive & Applications)</option>
                   <option value="advanced">Advanced (Critical Analysis & Synthesis)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  Curriculum Depth (Modules)
+                </label>
+                <select
+                  value={targetChapters}
+                  onChange={(e) => setTargetChapters(Number(e.target.value))}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-xs md:text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                >
+                  <option value={4}>Focused (Up to 4 Modules)</option>
+                  <option value={8}>Half Book (Up to 8 Modules)</option>
+                  <option value={12}>Extended (Up to 12 Modules)</option>
+                  <option value={18}>Full Book (All 18 Chapters)</option>
+                  <option value={24}>Extended Textbook (Up to 24 Chapters)</option>
                 </select>
               </div>
 

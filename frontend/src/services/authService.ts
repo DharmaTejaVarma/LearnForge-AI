@@ -13,12 +13,12 @@ export const authService = {
   },
 
   async getProfile(): Promise<User> {
-    const response = await api.get<User>('/users/me');
+    const response = await api.get<User>('/users/me', { timeout: 6000 });
     return response.data;
   },
 
   async getHealth(): Promise<any> {
-    const response = await api.get('/health');
+    const response = await api.get('/health', { timeout: 6000 });
     return response.data;
   }
 };

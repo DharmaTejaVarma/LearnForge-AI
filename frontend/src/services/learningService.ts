@@ -7,9 +7,18 @@ export interface Citation {
   similarity_score: number;
 }
 
+export interface TutorResource {
+  title: string;
+  source_type: string;
+  page_number?: number | null;
+  document_id?: number | null;
+  description?: string | null;
+}
+
 export interface TutorResponse {
   answer: string;
   citations: Citation[];
+  resources?: TutorResource[];
   provider_used: string;
   latency_ms: number;
   conversation_id?: string;
@@ -33,14 +42,19 @@ export interface Flashcard {
   document_id?: number;
   front_prompt: string;
   back_answer: string;
+  difficulty?: string;
   review_count: number;
   mastery_level: string;
+  ease_factor?: number;
+  interval_days?: number;
+  next_review_at?: string | null;
   last_reviewed_at?: string;
 }
 
 export interface Question {
   id: number;
   question_text: string;
+  question_type?: string;
   options: string[];
   correct_answer: string;
   explanation?: string;
@@ -52,6 +66,16 @@ export interface Quiz {
   title: string;
   description?: string;
   questions: Question[];
+  created_at: string;
+}
+
+export interface QuizListItem {
+  id: number;
+  user_id: number;
+  course_id?: number | null;
+  title: string;
+  description?: string | null;
+  question_count: number;
   created_at: string;
 }
 
@@ -67,6 +91,7 @@ export interface QuizAttempt {
 export interface QuestionResult {
   question_id: number;
   question_text: string;
+  question_type?: string;
   options: string[];
   correct_answer: string;
   selected_answer: string;
@@ -78,6 +103,27 @@ export interface QuizAttemptDetail extends QuizAttempt {
   question_results?: QuestionResult[];
 }
 
+export interface WeeklyActivityItem {
+  date: string;
+  label: string;
+  actions: number;
+}
+
+export interface CourseProgressItem {
+  course_id: number;
+  title: string;
+  completed_lessons: number;
+  total_lessons: number;
+  completion_percentage: number;
+}
+
+export interface RecommendedLessonItem {
+  lesson_id: number;
+  lesson_title: string;
+  course_id: number;
+  course_title: string;
+}
+
 export interface ProgressStats {
   user_id: number;
   total_courses: number;
@@ -86,10 +132,16 @@ export interface ProgressStats {
   total_lessons: number;
   flashcards_mastered: number;
   total_flashcards: number;
+  flashcards_reviewed?: number;
+  flashcards_due?: number;
   quizzes_taken: number;
   average_quiz_score: number;
   overall_mastery_percentage: number;
   weak_topics: string[];
+  recommendations?: string[];
+  course_progress?: CourseProgressItem[];
+  recommended_next_lessons?: RecommendedLessonItem[];
+  weekly_activity?: WeeklyActivityItem[];
 }
 
 export const learningService = {
@@ -99,6 +151,8 @@ export const learningService = {
     courseId?: number,
     lessonId?: number,
     conversationId?: string,
+    exerciseId?: number,
+    tutorMode?: string,
   ): Promise<TutorResponse> {
     const res = await api.post<TutorResponse>('/tutor/chat', {
       question,
@@ -106,7 +160,9 @@ export const learningService = {
       course_id: courseId,
       lesson_id: lessonId,
       conversation_id: conversationId,
-    });
+      exercise_id: exerciseId,
+      tutor_mode: tutorMode,
+    }, { timeout: 180000 });
     return res.data;
   },
 
@@ -157,7 +213,7 @@ export const learningService = {
       course_id: courseId,
       count,
       difficulty,
-    });
+    }, { timeout: 180000 });
     return res.data;
   },
 
@@ -165,11 +221,13 @@ export const learningService = {
     courseId?: number,
     documentId?: number,
     masteryLevel?: string,
+    dueOnly = false,
   ): Promise<Flashcard[]> {
     const params: Record<string, any> = {};
     if (courseId) params.course_id = courseId;
     if (documentId) params.document_id = documentId;
     if (masteryLevel) params.mastery_level = masteryLevel;
+    if (dueOnly) params.due_only = true;
     const res = await api.get<Flashcard[]>('/flashcards', { params });
     return res.data;
   },
@@ -195,18 +253,32 @@ export const learningService = {
     return res.data;
   },
 
+  async listQuizzes(courseId?: number): Promise<QuizListItem[]> {
+    const params: Record<string, any> = {};
+    if (courseId) params.course_id = courseId;
+    const res = await api.get<QuizListItem[]>('/quizzes', { params });
+    return res.data;
+  },
+
+  async getQuiz(quizId: number): Promise<Quiz> {
+    const res = await api.get<Quiz>(`/quizzes/${quizId}`);
+    return res.data;
+  },
+
   async generateQuiz(
     documentId?: number,
     courseId?: number,
     count = 5,
     difficulty = 'medium',
+    questionType = 'mcq',
   ): Promise<Quiz> {
     const res = await api.post<Quiz>('/quizzes/generate', {
       document_id: documentId,
       course_id: courseId,
       question_count: count,
       difficulty,
-    });
+      question_type: questionType,
+    }, { timeout: 180000 });
     return res.data;
   },
 

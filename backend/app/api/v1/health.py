@@ -42,7 +42,8 @@ async def health_check():
         "ai_providers": {
             **ai_status,
             "embedding_model": settings.EMBEDDING_MODEL,
-        }
+        },
+        "ai_metrics": model_router.get_metrics(),
     }
 
 def os_access(path: Path) -> bool:

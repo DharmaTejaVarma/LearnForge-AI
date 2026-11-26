@@ -2,6 +2,7 @@ from typing import Any, Optional
 from fastapi import Request, status
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
+from app.core.config import settings
 from app.core.logging import logger
 
 class LearnForgeException(Exception):
@@ -61,6 +62,8 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     )
 
 async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    if exc.__class__.__name__ == "ClientDisconnected":
+        return JSONResponse(status_code=499, content={"success": False, "error": {"code": "ClientDisconnected", "message": "Client disconnected"}})
     logger.exception(f"Unhandled exception on {request.url.path}: {str(exc)}")
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -69,7 +72,7 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
             "error": {
                 "code": "InternalServerError",
                 "message": "An unexpected internal server error occurred",
-                "details": str(exc) if True else None,
+                "details": str(exc) if settings.DEBUG else None,
             }
         }
     )

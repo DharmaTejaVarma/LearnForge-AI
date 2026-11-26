@@ -5,19 +5,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.database import get_db
 from app.db.models.user import User
 from app.db.models.course import Course, Chapter, Topic, Lesson
-from app.db.models.learning_tools import Question, Quiz, QuizAttempt
+from app.db.models.learning_tools import Question, Quiz, QuizAttempt, AgentExecutionLog
 from app.api.dependencies.auth import get_current_user
 from app.schemas.learning_tools import (
     QuizGenerateRequest,
     QuizResponse,
+    QuizListItem,
     QuizSubmitRequest,
     QuizAttemptResponse,
     QuestionResponse,
     QuizAttemptDetailResponse,
 )
-from app.ai.agents.question_agent import QuestionAgent
 from app.ai.agents.assessment_agent import AssessmentAgent
-from app.core.exceptions import NotFoundException, ForbiddenException
+from app.ai.graphs.learning_graph import LearningGraph
+from app.core.exceptions import NotFoundException, ForbiddenException, BadRequestException
 
 router = APIRouter()
 
@@ -40,24 +41,64 @@ async def _resolve_document_ids(
     return document_id, [document_id] if document_id else None
 
 
+@router.get("", response_model=List[QuizListItem], status_code=status.HTTP_200_OK)
+@router.get("/", response_model=List[QuizListItem], status_code=status.HTTP_200_OK)
+async def list_quizzes(
+    course_id: Optional[int] = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=200),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """List user's generated quizzes ordered by most recent."""
+    query = select(Quiz).where(Quiz.user_id == current_user.id)
+    if course_id:
+        query = query.where(Quiz.course_id == course_id)
+    query = query.order_by(Quiz.id.desc()).offset(skip).limit(limit)
+    res = await db.execute(query)
+    quizzes = res.scalars().all()
+    return [
+        QuizListItem(
+            id=q.id,
+            user_id=q.user_id,
+            course_id=q.course_id,
+            title=q.title,
+            description=q.description,
+            question_count=len(q.question_ids or []),
+            created_at=q.created_at,
+        )
+        for q in quizzes
+    ]
+
+
 @router.post("/generate", response_model=QuizResponse, status_code=status.HTTP_201_CREATED)
 async def generate_quiz(
     req: QuizGenerateRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Generate dynamic assessment quiz with multiple-choice questions."""
+    """Generate dynamic assessment quiz (MCQ, True/False, Short Answer) via LangGraph workflow."""
     single_doc_id, multi_doc_ids = await _resolve_document_ids(
         db, current_user.id, req.document_id, req.course_id
     )
 
-    q_data_list = await QuestionAgent.generate_questions(
-        user_id=current_user.id,
-        document_id=single_doc_id,
-        document_ids=multi_doc_ids,
-        count=req.question_count or 5,
-        difficulty=req.difficulty or "medium",
+    graph_state = await LearningGraph.run_workflow(
+        {
+            "workflow_type": "quiz_generation",
+            "user_id": current_user.id,
+            "document_id": single_doc_id,
+            "document_ids": multi_doc_ids,
+            "course_id": req.course_id,
+            "count": req.question_count or 5,
+            "difficulty": req.difficulty or "medium",
+            "question_type": req.question_type or "mcq",
+        }
     )
+    q_data_list = (graph_state.get("generated_output") or {}).get("questions", [])
+    if not q_data_list:
+        raise BadRequestException(
+            "Insufficient indexed source material found in the selected document or course to generate quiz questions."
+        )
 
     created_questions = []
     for q_data in q_data_list:
@@ -66,7 +107,7 @@ async def generate_quiz(
             course_id=req.course_id,
             document_id=req.document_id or single_doc_id,
             question_text=q_data["question_text"],
-            question_type="mcq",
+            question_type=q_data.get("question_type", "mcq"),
             options=q_data.get("options", []),
             correct_answer=q_data["correct_answer"],
             explanation=q_data.get("explanation"),
@@ -83,7 +124,7 @@ async def generate_quiz(
     difficulty_label = (req.difficulty or "medium").title()
     quiz_title = f"{difficulty_label} Assessment Quiz"
     if req.course_id:
-        course_res = await db.execute(select(Course).where(Course.id == req.course_id))
+        course_res = await db.execute(select(Course).where(Course.id == req.course_id, Course.user_id == current_user.id))
         course = course_res.scalars().first()
         if course:
             quiz_title = f"{course.title} — {difficulty_label} Quiz"
@@ -96,6 +137,16 @@ async def generate_quiz(
         question_ids=[q.id for q in created_questions],
     )
     db.add(quiz)
+    db.add(
+        AgentExecutionLog(
+            user_id=current_user.id,
+            agent_name="LearningGraph:Question",
+            task_type="quiz_generation",
+            status="success",
+            latency_ms=0.0,
+            output_summary=f"questions={len(created_questions)}, type={req.question_type or 'mcq'}",
+        )
+    )
     await db.commit()
     await db.refresh(quiz)
 
@@ -124,8 +175,10 @@ async def get_quiz(
     if quiz.user_id != current_user.id:
         raise ForbiddenException("Unauthorized quiz access")
 
-    q_res = await db.execute(select(Question).where(Question.id.in_(quiz.question_ids)))
-    questions = q_res.scalars().all()
+    questions = []
+    if quiz.question_ids:
+        q_res = await db.execute(select(Question).where(Question.id.in_(quiz.question_ids)))
+        questions = q_res.scalars().all()
 
     return QuizResponse(
         id=quiz.id,
@@ -153,20 +206,31 @@ async def submit_quiz(
     if quiz.user_id != current_user.id:
         raise ForbiddenException("Unauthorized quiz access")
 
-    q_res = await db.execute(select(Question).where(Question.id.in_(quiz.question_ids)))
-    questions = q_res.scalars().all()
+    questions = []
+    if quiz.question_ids:
+        q_res = await db.execute(select(Question).where(Question.id.in_(quiz.question_ids)))
+        questions = q_res.scalars().all()
     q_dict_list = [
         {
             "id": q.id,
             "correct_answer": q.correct_answer,
             "question_text": q.question_text,
+            "question_type": q.question_type,
             "explanation": q.explanation or "",
             "options": q.options or [],
         }
         for q in questions
     ]
 
-    eval_result = AssessmentAgent.evaluate_quiz(q_dict_list, submission.answers)
+    graph_state = await LearningGraph.run_workflow(
+        {
+            "workflow_type": "assessment_review",
+            "user_id": current_user.id,
+            "quiz_questions": q_dict_list,
+            "student_answers": submission.answers,
+        }
+    )
+    eval_result = graph_state.get("generated_output") or AssessmentAgent.evaluate_quiz(q_dict_list, submission.answers)
 
     attempt = QuizAttempt(
         user_id=current_user.id,
@@ -175,6 +239,7 @@ async def submit_quiz(
         total_questions=eval_result["total"],
         correct_answers_count=eval_result["correct_count"],
         feedback=eval_result["feedback"],
+        weak_concepts=eval_result.get("weak_concepts", []),
     )
     db.add(attempt)
     await db.commit()
@@ -184,10 +249,11 @@ async def submit_quiz(
     question_results = []
     for q in questions:
         selected = submission.answers.get(q.id, "")
-        is_correct = AssessmentAgent.is_correct(q.correct_answer, selected)
+        is_correct = AssessmentAgent.is_correct(q.correct_answer, selected, question_type=q.question_type)
         question_results.append({
             "question_id": q.id,
             "question_text": q.question_text,
+            "question_type": q.question_type,
             "options": q.options or [],
             "correct_answer": q.correct_answer,
             "selected_answer": selected,
@@ -245,8 +311,10 @@ async def delete_quiz(
         raise ForbiddenException("Unauthorized quiz access")
 
     # Delete associated questions
-    q_res = await db.execute(select(Question).where(Question.id.in_(quiz.question_ids)))
-    questions = q_res.scalars().all()
+    questions = []
+    if quiz.question_ids:
+        q_res = await db.execute(select(Question).where(Question.id.in_(quiz.question_ids)))
+        questions = q_res.scalars().all()
     for q in questions:
         await db.delete(q)
 

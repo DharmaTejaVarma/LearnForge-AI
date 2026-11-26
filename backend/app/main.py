@@ -37,21 +37,91 @@ FRONTEND_DIST = Path(__file__).resolve().parents[2] / "frontend" / "dist"
 async def lifespan(app: FastAPI):
     # Startup: Verify database connection & configuration
     logger.info(f"Starting {settings.PROJECT_NAME} v{settings.VERSION} [{settings.ENVIRONMENT}]")
+    if settings.ENVIRONMENT.lower() == "production":
+        if "dev_secret_key" in settings.SECRET_KEY:
+            raise RuntimeError("SECRET_KEY must be overridden with a strong secret in production!")
+        if settings.DEBUG:
+            logger.warning("SECURITY WARNING: DEBUG=True is enabled in production environment.")
     db_status = await check_db_health()
     logger.info(f"Database initial check: {db_status}")
+    try:
+        from app.db.base import Base
+        import app.db.models  # noqa: F401
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+    except Exception as table_err:
+        logger.warning(f"Table metadata sync warning: {table_err}")
+    try:
+        if "pytest" not in sys.modules:
+            from app.ai.models.model_router import model_router
+            await model_router.probe_cloud_once()
+    except Exception as e:
+        logger.warning(f"Cloud provider probe skipped at startup: {e}")
+
+    # Reset any interrupted lessons/jobs and pre-warm local embedding model in background
+    if "pytest" not in sys.modules:
+        import asyncio as _asyncio
+        from app.services.job_queue import LessonJobService
+        await LessonJobService.recover_interrupted_jobs()
+        _asyncio.create_task(_resume_queued_lessons())
+        _asyncio.create_task(_prewarm_embeddings())
+
     yield
-    # Shutdown: Cleanly dispose async database engine connections
+    # Shutdown: Cancel active job workers & cleanly dispose async database engine connections
+    if "pytest" not in sys.modules:
+        from app.services.job_queue import LessonJobService
+        await LessonJobService.shutdown_workers()
     logger.info("Shutting down database engine connections...")
     await engine.dispose()
     logger.info("Application shutdown complete.")
+
+
+async def _prewarm_embeddings() -> None:
+    """Load local SentenceTransformer in background so first document upload doesn't stall."""
+    import asyncio
+    await asyncio.sleep(2)
+    try:
+        from app.ai.embeddings.embedding_service import EmbeddingService
+        await asyncio.to_thread(EmbeddingService.get_model)
+    except Exception as exc:
+        logger.debug(f"Embedding prewarm skipped: {exc}")
+
+
+async def _resume_queued_lessons() -> None:
+    """On startup, reset any interrupted 'generating' lessons back to 'queued' for on-demand synthesis."""
+    import asyncio
+    await asyncio.sleep(3)
+    try:
+        from sqlalchemy import update
+        from app.db.database import AsyncSessionLocal
+        from app.db.models.course import Lesson, GenerationJob
+
+        async with AsyncSessionLocal() as session:
+            # Reset lessons left in 'generating' when the previous server stopped
+            res = await session.execute(
+                update(Lesson)
+                .where(Lesson.generation_status == "generating", Lesson.content == "")
+                .values(generation_status="queued")
+            )
+            # Mark any stale running GenerationJobs as completed (remaining lessons use on-demand + prefetch)
+            await session.execute(
+                update(GenerationJob)
+                .where(GenerationJob.status == "running")
+                .values(status="completed", current_stage="Ready for on-demand learning")
+            )
+            await session.commit()
+            if res.rowcount:
+                logger.info(f"Startup: Reset {res.rowcount} interrupted lessons to 'queued' (on-demand ready).")
+    except Exception as exc:
+        logger.warning(f"Startup lesson cleanup failed: {exc}")
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
     description="Intelligent Local-First AI Learning Platform API",
     lifespan=lifespan,
-    docs_url="/docs",
-    redoc_url="/redoc",
+    docs_url="/docs" if settings.ENVIRONMENT.lower() != "production" else None,
+    redoc_url="/redoc" if settings.ENVIRONMENT.lower() != "production" else None,
 )
 
 # CORS Middleware
@@ -62,6 +132,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# API Rate Limiting Middleware
+from app.core.rate_limit import RateLimitMiddleware
+app.add_middleware(RateLimitMiddleware, max_requests_per_minute=settings.RATE_LIMIT_PER_MINUTE)
 
 # Centralized Exception Handlers
 app.add_exception_handler(LearnForgeException, learnforge_exception_handler)

@@ -1,6 +1,7 @@
+import asyncio
 import json
 import re
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Optional, Set
 from app.ai.rag.retriever import RAGRetriever
 from app.ai.models.model_router import model_router
 from app.core.sanitizer import EducationalSanitizer
@@ -8,7 +9,11 @@ from app.core.logging import logger
 
 
 class FlashcardAgent:
-    """Generates high-impact, validated active-recall flashcards from course material."""
+    """Generates high-impact, deduplicated active-recall flashcards grounded in course material."""
+
+    @staticmethod
+    def _norm_front(text: str) -> str:
+        return re.sub(r"[^a-z0-9]+", " ", (text or "").lower()).strip()
 
     @staticmethod
     async def generate_cards(
@@ -17,20 +22,38 @@ class FlashcardAgent:
         document_ids: Optional[List[int]] = None,
         count: int = 5,
         difficulty: str = "medium",
+        existing_fronts: Optional[List[str]] = None,
     ) -> List[Dict[str, str]]:
-        # 1. Retrieve key passages via RAG (support both single doc and course-scoped multi-doc)
-        passages = RAGRetriever.retrieve(
+        # 1. Retrieve key passages via RAG (offloaded so embedding/Chroma never blocks event loop)
+        passages = await asyncio.to_thread(
+            RAGRetriever.retrieve,
             query="Key definitions, core terminology, theoretical concepts, and principles",
             user_id=user_id,
             document_id=document_id,
             document_ids=document_ids,
-            top_k=min(count + 3, 10),
+            top_k=min(count + 4, 12),
         )
+        # If semantic meta-query didn't match literal document vocabulary, sample document pages directly
+        if not passages:
+            target_id = document_id or (document_ids[0] if document_ids else None)
+            if target_id:
+                passages = await asyncio.to_thread(
+                    RAGRetriever.get_chunks_for_pages,
+                    document_id=target_id,
+                    user_id=user_id,
+                    page_start=1,
+                    page_end=25,
+                    max_chunks=min(count + 4, 12),
+                )
 
-        # 2. Sanitize context to completely eliminate filenames, headers, and metadata
+        # 2. Sanitize context to eliminate filenames, headers, and metadata
         clean_context = "\n\n".join(
             EducationalSanitizer.sanitize_educational_text(p["text"]) for p in passages
-        )
+        ).strip()
+        if not clean_context:
+            return []
+
+        seen_fronts: Set[str] = {FlashcardAgent._norm_front(f) for f in (existing_fronts or []) if f}
 
         difficulty_guidance = {
             "easy": "Focus on straightforward definitions, key terms, and factual recall. Keep answers concise.",
@@ -47,13 +70,13 @@ class FlashcardAgent:
             "2. The back MUST contain a concise, precise, and accurate explanation or definition (1-3 sentences).\n"
             "3. NEVER mention filenames, extensions (e.g. .pdf, .docx), chunk IDs, page numbers, or internal metadata.\n"
             "4. NEVER generate cards with vague templates like 'What is the significance of: ...?'.\n"
-            "5. Cards must be grounded in the provided reference text — do not invent topics.\n"
+            "5. Cards must be grounded strictly in the provided reference text — do not invent topics.\n"
             "6. Respond ONLY with a valid JSON array matching this exact format:\n"
             '[\n'
             '  {"front": "What is a Python function?", "back": "A reusable block of code that performs a specific task, defined with the def keyword."},\n'
             '  {"front": "What is the purpose of a return statement?", "back": "It sends a computed result from a function back to the caller, ending function execution."}\n'
             ']\n\n'
-            f"Course Material:\n{clean_context[:4000]}"
+            f"Course Material:\n{clean_context[:3500]}"
         )
 
         valid_cards: List[Dict[str, str]] = []
@@ -62,7 +85,7 @@ class FlashcardAgent:
                 prompt=prompt,
                 task_type="flashcard",
                 temperature=0.3,
-                format="json"
+                format="json",
             )
             content = res.get("content", "").strip()
             if "```json" in content:
@@ -76,54 +99,60 @@ class FlashcardAgent:
                     if isinstance(card, dict) and "front" in card and "back" in card:
                         f_text = str(card["front"]).strip()
                         b_text = str(card["back"]).strip()
-                        if EducationalSanitizer.validate_flashcard(f_text, b_text):
-                            valid_cards.append({"front": f_text, "back": b_text})
+                        norm_f = FlashcardAgent._norm_front(f_text)
+                        if norm_f and norm_f not in seen_fronts and EducationalSanitizer.validate_flashcard(f_text, b_text):
+                            seen_fronts.add(norm_f)
+                            valid_cards.append({"front": f_text, "back": b_text, "difficulty": difficulty})
         except Exception as e:
             logger.warning(f"AI flashcard generation fallback: {e}")
 
-        # 3. If AI produced fewer cards than requested, synthesize grounded, clean fallback cards
+        # 3. Synthesize grounded cards directly from retrieved passages when LLM returns fewer cards
         if len(valid_cards) < count:
-            fallback_cards = FlashcardAgent._generate_heuristic_cards(clean_context, count)
+            fallback_cards = FlashcardAgent._generate_heuristic_cards(clean_context, count - len(valid_cards) + 3)
             for fc in fallback_cards:
                 if len(valid_cards) >= count:
                     break
-                if EducationalSanitizer.validate_flashcard(fc["front"], fc["back"]):
-                    # Avoid duplicates
-                    if not any(v["front"].lower() == fc["front"].lower() for v in valid_cards):
-                        valid_cards.append(fc)
-
-        # 4. Final safety guard if no cards could be extracted
-        if not valid_cards:
-            valid_cards = [
-                {
-                    "front": "What is the primary objective of active recall in learning?",
-                    "back": "Active recall stimulates memory retention by retrieving information from memory during the testing process rather than passive review."
-                },
-                {
-                    "front": "How do structured learning modules enhance knowledge retention?",
-                    "back": "They sequence foundational definitions into progressive, practical applications, allowing students to build hierarchical understanding."
-                }
-            ]
+                norm_f = FlashcardAgent._norm_front(fc["front"])
+                if norm_f and norm_f not in seen_fronts and EducationalSanitizer.validate_flashcard(fc["front"], fc["back"]):
+                    seen_fronts.add(norm_f)
+                    valid_cards.append({**fc, "difficulty": difficulty})
 
         return valid_cards[:count]
 
     @staticmethod
     def _generate_heuristic_cards(text: str, target_count: int) -> List[Dict[str, str]]:
-        """Synthesizes valid flashcards directly from conceptual text without metadata contamination."""
-        cards = []
-        sentences = [s.strip() for s in text.split(".") if len(s.strip()) > 30]
+        """Synthesizes grounded flashcards directly from retrieved document sentences without fabricating unrelated topics."""
+        cards: List[Dict[str, str]] = []
+        sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", text) if len(s.strip()) > 25]
 
+        def_re = re.compile(
+            r"\b([A-Za-z][A-Za-z0-9\s\(\)\-]{2,42}?)\s+(?:is defined as|is an|is the|is a|are|refers to|represents|means|enables|manages|provides)\s+(.+)",
+            re.IGNORECASE,
+        )
         for s in sentences:
-            match = re.search(r"\b([A-Z][a-zA-Z\s]{2,30})\s+(?:is defined as|is a|refers to|represents|means)\s+(.+)", s)
+            match = def_re.search(s)
             if match:
-                term = match.group(1).strip()
+                term = match.group(1).strip(" :,-")
                 definition = match.group(2).strip()
-                if len(term) >= 3 and len(definition) >= 20:
+                if len(term) >= 3 and len(definition) >= 15 and not EducationalSanitizer.contains_metadata_leak(term):
                     cards.append({
-                        "front": f"What is {term}?",
-                        "back": f"{term} is {definition[:150]}."
+                        "front": f"How does your study material explain {term}?",
+                        "back": f"{term} {match.group(0)[len(match.group(1)):].strip()[:220]}",
                     })
             if len(cards) >= target_count:
                 break
+
+        # If sentences lacked classic 'is a' phrasing, extract concise grounded comprehension cards
+        if len(cards) < target_count:
+            for idx, s in enumerate(sentences):
+                words = [w for w in re.findall(r"\b[A-Za-z][A-Za-z0-9\-]{3,}\b", s)]
+                if len(words) >= 5 and len(s) >= 35:
+                    topic_phrase = " ".join(words[:3])
+                    cards.append({
+                        "front": f"What key point is stated regarding {topic_phrase}?",
+                        "back": s[:240],
+                    })
+                if len(cards) >= target_count:
+                    break
 
         return cards

@@ -50,6 +50,7 @@ export const Flashcards: React.FC = () => {
   const [count, setCount] = useState<number>(5);
   const [difficulty, setDifficulty] = useState<string>('medium');
   const [filterMastery, setFilterMastery] = useState<string>('');
+  const [dueOnly, setDueOnly] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
@@ -57,7 +58,7 @@ export const Flashcards: React.FC = () => {
     setError(null);
     try {
       const [cardsData, docsData, coursesData] = await Promise.all([
-        learningService.listFlashcards(),
+        learningService.listFlashcards(undefined, undefined, undefined, dueOnly),
         documentService.list(),
         courseService.list(),
       ]);
@@ -76,7 +77,7 @@ export const Flashcards: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [dueOnly]);
 
   useEffect(() => {
     loadData();
@@ -123,7 +124,7 @@ export const Flashcards: React.FC = () => {
     }
   };
 
-  const handleReview = async (mastered: boolean) => {
+  const handleReview = useCallback(async (mastered: boolean) => {
     if (!currentCard) return;
     try {
       const updated = await learningService.reviewFlashcard(currentCard.id, mastered);
@@ -138,7 +139,35 @@ export const Flashcards: React.FC = () => {
     } catch (err) {
       console.error('Review failed:', err);
     }
-  };
+  }, [currentCard, currentIndex, displayedCards.length]);
+
+  // Keyboard navigation: Space/Enter flip, Left/Right nav, 1/2 grade when flipped
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+      if (displayedCards.length === 0) return;
+
+      if (e.code === 'Space' || e.code === 'Enter') {
+        e.preventDefault();
+        setIsFlipped((v) => !v);
+      } else if (e.code === 'ArrowLeft') {
+        e.preventDefault();
+        setIsFlipped(false);
+        setCurrentIndex((i) => (i > 0 ? i - 1 : displayedCards.length - 1));
+      } else if (e.code === 'ArrowRight') {
+        e.preventDefault();
+        setIsFlipped(false);
+        setCurrentIndex((i) => (i < displayedCards.length - 1 ? i + 1 : 0));
+      } else if (isFlipped && e.key === '1') {
+        handleReview(false);
+      } else if (isFlipped && e.key === '2') {
+        handleReview(true);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [displayedCards.length, isFlipped, handleReview]);
 
   const handleDelete = async (id: number) => {
     setDeletingId(id);
@@ -177,34 +206,51 @@ export const Flashcards: React.FC = () => {
           </p>
         </div>
 
-        {/* Mastery Stats */}
-        {cards.length > 0 && (
-          <div className="flex items-center gap-2 text-xs flex-wrap">
-            {(['new', 'reviewing', 'mastered'] as MasteryLevel[]).map((level) => (
-              <button
-                key={level}
-                onClick={() => {
-                  setFilterMastery(filterMastery === level ? '' : level);
-                  setCurrentIndex(0);
-                  setIsFlipped(false);
-                }}
-                className={`px-2.5 py-1 rounded-full font-medium transition-all ${
-                  MASTERY_COLORS[level]
-                } ${filterMastery === level ? 'ring-2 ring-white/30' : ''}`}
-              >
-                {MASTERY_LABELS[level]} · {masteryStats[level]}
-              </button>
-            ))}
-            {filterMastery && (
-              <button
-                onClick={() => { setFilterMastery(''); setCurrentIndex(0); }}
-                className="text-slate-400 hover:text-white px-1"
-              >
-                ✕ All
-              </button>
-            )}
-          </div>
-        )}
+        {/* Mastery Stats + Due Toggle */}
+        <div className="flex items-center gap-2 text-xs flex-wrap">
+          <button
+            type="button"
+            onClick={() => {
+              setDueOnly((v) => !v);
+              setCurrentIndex(0);
+              setIsFlipped(false);
+            }}
+            className={`px-2.5 py-1 rounded-full font-medium border transition-all ${
+              dueOnly
+                ? 'bg-indigo-600 text-white border-indigo-500'
+                : 'bg-slate-800 text-slate-300 border-slate-700 hover:border-slate-600'
+            }`}
+          >
+            {dueOnly ? 'Showing Due Only' : 'SM-2 Due Queue'}
+          </button>
+          {cards.length > 0 && (
+            <>
+              {(['new', 'reviewing', 'mastered'] as MasteryLevel[]).map((level) => (
+                <button
+                  key={level}
+                  onClick={() => {
+                    setFilterMastery(filterMastery === level ? '' : level);
+                    setCurrentIndex(0);
+                    setIsFlipped(false);
+                  }}
+                  className={`px-2.5 py-1 rounded-full font-medium transition-all ${
+                    MASTERY_COLORS[level]
+                  } ${filterMastery === level ? 'ring-2 ring-white/30' : ''}`}
+                >
+                  {MASTERY_LABELS[level]} · {masteryStats[level]}
+                </button>
+              ))}
+              {filterMastery && (
+                <button
+                  onClick={() => { setFilterMastery(''); setCurrentIndex(0); }}
+                  className="text-slate-400 hover:text-white px-1"
+                >
+                  ✕ All
+                </button>
+              )}
+            </>
+          )}
+        </div>
       </div>
 
       {/* Generation Controls */}
@@ -454,8 +500,12 @@ export const Flashcards: React.FC = () => {
           )}
 
           {/* Keyboard hint */}
-          <p className="text-center text-xs text-slate-600">
-            Tip: Click the card to flip · Use Prev / Next to navigate
+          <p className="text-center text-xs text-slate-500">
+            Shortcuts: <kbd className="px-1.5 py-0.5 bg-slate-800 rounded border border-slate-700">Space</kbd> Flip ·{' '}
+            <kbd className="px-1.5 py-0.5 bg-slate-800 rounded border border-slate-700">←</kbd>{' '}
+            <kbd className="px-1.5 py-0.5 bg-slate-800 rounded border border-slate-700">→</kbd> Navigate ·{' '}
+            <kbd className="px-1.5 py-0.5 bg-slate-800 rounded border border-slate-700">1</kbd> /{' '}
+            <kbd className="px-1.5 py-0.5 bg-slate-800 rounded border border-slate-700">2</kbd> Grade
           </p>
         </div>
       )}

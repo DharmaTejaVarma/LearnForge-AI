@@ -20,6 +20,7 @@ class UserUpdate(BaseModel):
 class UserResponse(UserBase):
     id: int
     is_active: bool
+    role: str = "student"
     created_at: datetime
     updated_at: datetime
 

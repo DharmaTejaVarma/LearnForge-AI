@@ -8,48 +8,64 @@ import {
   GraduationCap,
   Sparkles,
   BarChart2,
-  X
+  X,
+  Loader2
 } from 'lucide-react';
 
 interface CourseCurriculumSidebarProps {
   course: Course;
   activeLessonId: number | null;
   isOverviewMode: boolean;
+  activeAssessmentChapterId?: number | null;
+  isFinalAssessmentMode?: boolean;
   onSelectLesson: (lessonId: number) => void;
   onSelectOverview: () => void;
+  onSelectModuleAssessment?: (chapterId: number) => void;
+  onSelectFinalAssessment?: () => void;
   collapsedChapters: Record<number, boolean>;
   onToggleChapter: (chapterId: number) => void;
   isOpenMobile: boolean;
   onCloseMobile: () => void;
+  hideOnDesktop?: boolean;
 }
 
 export const CourseCurriculumSidebar: React.FC<CourseCurriculumSidebarProps> = ({
   course,
   activeLessonId,
   isOverviewMode,
+  activeAssessmentChapterId = null,
+  isFinalAssessmentMode = false,
   onSelectLesson,
   onSelectOverview,
+  onSelectModuleAssessment,
+  onSelectFinalAssessment,
   collapsedChapters,
   onToggleChapter,
   isOpenMobile,
   onCloseMobile,
+  hideOnDesktop = false,
 }) => {
   // Compute progress stats
   let totalLessons = 0;
   let completedLessons = 0;
+  let readyLessons = 0;
+  let generatingLessons = 0;
 
   course.chapters?.forEach((chap) => {
     chap.topics.forEach((topic) => {
       if (topic.lesson) {
         totalLessons += 1;
-        if (topic.lesson.is_completed) {
-          completedLessons += 1;
+        if (topic.lesson.is_completed) completedLessons += 1;
+        if (topic.lesson.generation_status === 'ready') readyLessons += 1;
+        if (topic.lesson.generation_status === 'queued' || topic.lesson.generation_status === 'generating') {
+          generatingLessons += 1;
         }
       }
     });
   });
 
   const progressPercent = totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
+  const isGenerating = generatingLessons > 0;
 
   const sidebarContent = (
     <div className="flex flex-col h-full bg-slate-900 border-r border-slate-800 text-slate-100 select-none">
@@ -103,6 +119,21 @@ export const CourseCurriculumSidebar: React.FC<CourseCurriculumSidebarProps> = (
           <div className="text-[10px] text-slate-500 text-right">
             {completedLessons} of {totalLessons} lessons completed
           </div>
+          {/* Separate Content Readiness Status */}
+          <div className="pt-1 border-t border-slate-800/70 flex items-center justify-between text-[10px] text-slate-400">
+            <span>Content Readiness</span>
+            <span className="font-mono text-emerald-400">
+              {readyLessons}/{totalLessons} ready
+            </span>
+          </div>
+          {isGenerating && (
+            <div className="flex items-center gap-1.5 pt-0.5">
+              <Loader2 className="h-3 w-3 text-indigo-400 animate-spin shrink-0" />
+              <span className="text-[10px] text-indigo-300">
+                On-demand & prefetch active ({generatingLessons} awaiting)
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -175,6 +206,8 @@ export const CourseCurriculumSidebar: React.FC<CourseCurriculumSidebarProps> = (
 
                       const isSelected = !isOverviewMode && activeLessonId === lesson.id;
                       const isDone = lesson.is_completed;
+                      const isPending = lesson.generation_status === 'queued' || lesson.generation_status === 'generating';
+                      const isFailed = lesson.generation_status === 'failed';
 
                       return (
                         <button
@@ -187,6 +220,8 @@ export const CourseCurriculumSidebar: React.FC<CourseCurriculumSidebarProps> = (
                           className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-left text-xs transition-all ${
                             isSelected
                               ? 'bg-indigo-600 text-white font-medium shadow-md shadow-indigo-600/30'
+                              : isPending
+                              ? 'text-slate-400 hover:bg-slate-800/70 hover:text-slate-200'
                               : 'text-slate-300 hover:bg-slate-800/70 hover:text-white'
                           }`}
                         >
@@ -197,6 +232,13 @@ export const CourseCurriculumSidebar: React.FC<CourseCurriculumSidebarProps> = (
                                   isSelected ? 'text-white' : 'text-emerald-400'
                                 }`}
                               />
+                            ) : isPending ? (
+                              <span className="relative shrink-0 flex h-3.5 w-3.5 items-center justify-center">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-40"></span>
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
+                              </span>
+                            ) : isFailed ? (
+                              <Circle className="h-3.5 w-3.5 shrink-0 text-rose-500" />
                             ) : (
                               <Circle
                                 className={`h-3.5 w-3.5 shrink-0 ${
@@ -214,9 +256,32 @@ export const CourseCurriculumSidebar: React.FC<CourseCurriculumSidebarProps> = (
                               Done
                             </span>
                           )}
+                          {isPending && !isSelected && (
+                            <span className="text-[9px] text-indigo-400 shrink-0">AI…</span>
+                          )}
                         </button>
                       );
                     })}
+
+                    {onSelectModuleAssessment && chapTotal > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onSelectModuleAssessment(chap.id);
+                          onCloseMobile();
+                        }}
+                        className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-left text-xs font-medium transition-all mt-1 border-t border-slate-800/70 ${
+                          activeAssessmentChapterId === chap.id
+                            ? 'bg-indigo-600/30 text-indigo-200 border border-indigo-500/40'
+                            : 'text-indigo-300/90 hover:bg-slate-800/70 hover:text-indigo-200'
+                        }`}
+                      >
+                        <span className="flex items-center gap-2">
+                          <Sparkles className="h-3.5 w-3.5 text-indigo-400" />
+                          <span>Module {cIdx + 1} Assessment</span>
+                        </span>
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -226,6 +291,26 @@ export const CourseCurriculumSidebar: React.FC<CourseCurriculumSidebarProps> = (
           <p className="text-xs text-slate-500 italic p-3 text-center">
             No modules generated for this course.
           </p>
+        )}
+
+        {onSelectFinalAssessment && totalLessons > 0 && (
+          <button
+            type="button"
+            onClick={() => {
+              onSelectFinalAssessment();
+              onCloseMobile();
+            }}
+            className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl border text-xs font-bold transition-all ${
+              isFinalAssessmentMode
+                ? 'bg-emerald-600/25 border-emerald-500/50 text-emerald-200'
+                : 'bg-slate-950/70 border-slate-800 text-emerald-300 hover:bg-slate-800/70'
+            }`}
+          >
+            <span className="flex items-center gap-2">
+              <GraduationCap className="h-4 w-4 text-emerald-400" />
+              <span>Final Course Assessment</span>
+            </span>
+          </button>
         )}
       </div>
 
@@ -243,9 +328,11 @@ export const CourseCurriculumSidebar: React.FC<CourseCurriculumSidebarProps> = (
   return (
     <>
       {/* Desktop Sticky Sidebar */}
-      <aside className="hidden lg:block w-80 shrink-0 h-[calc(100vh-5.5rem)] sticky top-20 rounded-2xl overflow-hidden border border-slate-800 shadow-xl">
-        {sidebarContent}
-      </aside>
+      {!hideOnDesktop && (
+        <aside className="hidden lg:block w-72 shrink-0 h-[calc(100vh-6rem)] sticky top-20 rounded-2xl overflow-hidden border border-slate-800 shadow-xl">
+          {sidebarContent}
+        </aside>
+      )}
 
       {/* Mobile Drawer Backdrop */}
       {isOpenMobile && (

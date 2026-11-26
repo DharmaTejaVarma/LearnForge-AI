@@ -13,9 +13,10 @@ import {
 interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
+  hideOnDesktop?: boolean;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, hideOnDesktop = false }) => {
   const navigation = [
     { name: 'Dashboard', to: '/', icon: LayoutDashboard },
     { name: 'Documents', to: '/documents', icon: FileText },
@@ -28,17 +29,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
 
   return (
     <>
-      {/* Mobile backdrop */}
+      {/* Mobile / Course-mode backdrop */}
       {isOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm md:hidden"
+          className={`fixed inset-0 z-40 bg-black/60 backdrop-blur-sm ${hideOnDesktop ? '' : 'md:hidden'}`}
           onClick={onClose}
         />
       )}
 
       <aside
-        className={`fixed md:sticky top-0 md:top-16 z-40 md:z-20 h-screen md:h-[calc(100vh-4rem)] w-64 bg-slate-900 border-r border-slate-800 transition-transform duration-200 ease-in-out ${
-          isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+        className={`fixed ${hideOnDesktop ? '' : 'md:sticky'} top-0 ${hideOnDesktop ? 'md:top-16' : 'md:top-16'} z-40 ${hideOnDesktop ? '' : 'md:z-20'} h-screen md:h-[calc(100vh-4rem)] w-64 bg-slate-900 border-r border-slate-800 transition-transform duration-200 ease-in-out ${
+          isOpen ? 'translate-x-0' : `-translate-x-full ${hideOnDesktop ? '' : 'md:translate-x-0'}`
         } flex flex-col justify-between p-4`}
       >
         <div className="space-y-6">

@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   backend:
     build:
@@ -10,21 +8,39 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - ENVIRONMENT=development
-      - DEBUG=True
+      - ENVIRONMENT=production
+      - DEBUG=False
+      - SECRET_KEY=${SECRET_KEY:-change_this_secret_in_production}
       - DATABASE_URL=sqlite+aiosqlite:////app/data/learnforge.db
       - CHROMA_PERSIST_DIRECTORY=/app/chroma_data
       - UPLOAD_DIR=/app/uploads
-      - OLLAMA_BASE_URL=http://host.docker.internal:11434
-      - LOCAL_MODEL=qwen2.5:7b
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      - LOCAL_MODEL=${LOCAL_MODEL:-qwen2.5:3b}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
+      - CORS_ORIGINS=["http://localhost:5173","http://localhost:3000","http://127.0.0.1:5173"]
     volumes:
-      - ./backend:/app
       - backend_data:/app/data
       - backend_uploads:/app/uploads
       - backend_chroma:/app/chroma_data
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.frontend
+    container_name: learnforge_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "5173:80"
 
 volumes:
   backend_data:

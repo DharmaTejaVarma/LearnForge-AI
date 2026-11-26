@@ -101,7 +101,8 @@ def main():
     print(f"{COLOR_GREEN}[Frontend]{COLOR_RESET} Vite UI -> http://localhost:5173\n")
     print(f"Press {COLOR_BOLD}Ctrl+C{COLOR_RESET} to shut down both servers.\n")
 
-    # Command for backend
+    # Command for backend — no reload so background lesson generation tasks aren't interrupted
+    # (Hot-reload kills asyncio tasks including the lesson generation background workers)
     backend_cmd = [
         str(PYTHON_BIN),
         "-m",
@@ -111,7 +112,8 @@ def main():
         "127.0.0.1",
         "--port",
         "8000",
-        "--reload",
+        "--workers",
+        "1",
     ]
 
     # Command for frontend

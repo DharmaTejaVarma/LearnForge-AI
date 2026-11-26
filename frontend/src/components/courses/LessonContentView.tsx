@@ -1,6 +1,12 @@
 import React from 'react';
-import { Lesson } from '../../services/courseService';
+import { Lesson, LessonExercise, LessonJobStatus } from '../../services/courseService';
 import { MarkdownRenderer } from './MarkdownRenderer';
+import { InteractiveConceptDeck } from './InteractiveConceptDeck';
+import { InteractiveMatchingCard } from './InteractiveMatchingCard';
+import { InteractiveArchitectureDiagram } from './InteractiveArchitectureDiagram';
+import { InteractiveSimulator } from './InteractiveSimulator';
+import { ProjectMilestoneCard } from './ProjectMilestoneCard';
+import { LessonExercisesPanel } from './LessonExercisesPanel';
 import { Button } from '../common/Button';
 import { Card } from '../common/Card';
 import { Spinner } from '../common/Spinner';
@@ -17,7 +23,8 @@ import {
   BookmarkCheck,
   Sparkles,
   AlertCircle,
-  RotateCw
+  RotateCw,
+  Clock
 } from 'lucide-react';
 
 interface LessonNavInfo {
@@ -29,6 +36,7 @@ interface LessonContentViewProps {
   lesson: Lesson;
   chapterTitle?: string;
   topicTitle?: string;
+  difficultyLevel?: string;
   prevLesson: LessonNavInfo | null;
   nextLesson: LessonNavInfo | null;
   onToggleComplete: () => Promise<void>;
@@ -37,12 +45,16 @@ interface LessonContentViewProps {
   onSelectOverview: () => void;
   onRegenerate?: () => Promise<void>;
   isRegenerating?: boolean;
+  jobStatus?: LessonJobStatus | null;
+  onCancelGeneration?: () => Promise<void>;
+  onAskTutorHint?: (exercise: LessonExercise) => void;
 }
 
 export const LessonContentView: React.FC<LessonContentViewProps> = ({
   lesson,
   chapterTitle,
   topicTitle,
+  difficultyLevel,
   prevLesson,
   nextLesson,
   onToggleComplete,
@@ -51,13 +63,24 @@ export const LessonContentView: React.FC<LessonContentViewProps> = ({
   onSelectOverview,
   onRegenerate,
   isRegenerating = false,
+  jobStatus = null,
+  onCancelGeneration,
+  onAskTutorHint,
 }) => {
+  const [showGrounding, setShowGrounding] = React.useState(false);
   const formattedPages = lesson.page_start && lesson.page_end
-    ? (lesson.page_start === lesson.page_end ? `Page ${lesson.page_start}` : `Pages ${lesson.page_start}–${lesson.page_end}`)
+    ? (lesson.page_start === lesson.page_end ? `PDF Page ${lesson.page_start}` : `PDF Pages ${lesson.page_start}–${lesson.page_end}`)
     : formatSourcePages(lesson.source_pages);
 
+  const printedPageStr =
+    lesson.printed_pages && lesson.printed_pages.length > 0
+      ? lesson.printed_pages.length > 1
+        ? `Book p. ${lesson.printed_pages[0]}–${lesson.printed_pages[lesson.printed_pages.length - 1]}`
+        : `Book p. ${lesson.printed_pages[0]}`
+      : null;
+
   return (
-    <div className="space-y-6 max-w-4xl mx-auto animate-fadeIn">
+    <div className="space-y-6 max-w-5xl mx-auto animate-fadeIn">
       {/* Top Breadcrumb & Controls Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 pb-2">
         <button
@@ -150,13 +173,58 @@ export const LessonContentView: React.FC<LessonContentViewProps> = ({
             {lesson.title}
           </h1>
 
-          {/* Source Grounding Citation Pill */}
-          {formattedPages && (
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-950/40 border border-indigo-500/20 text-indigo-300 text-xs">
-              <FileText className="h-3.5 w-3.5 text-indigo-400 shrink-0" />
-              <span>
-                <strong>Source Material:</strong> {formattedPages}
+          {/* Source Grounding & Duration Pills */}
+          <div className="flex flex-wrap items-center gap-2">
+            {(formattedPages || printedPageStr) && (
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-950/40 border border-indigo-500/20 text-indigo-300 text-xs">
+                <FileText className="h-3.5 w-3.5 text-indigo-400 shrink-0" />
+                <span>
+                  <strong>Source:</strong>{' '}
+                  {printedPageStr ? `${printedPageStr} (${formattedPages})` : formattedPages}
+                </span>
+              </div>
+            )}
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-800/80 border border-slate-700 text-slate-300 text-xs">
+              <Clock className="h-3.5 w-3.5 text-indigo-400" />
+              <span>~{lesson.estimated_minutes || 10} min</span>
+            </div>
+            {difficultyLevel && (
+              <span className="px-3 py-1 rounded-full bg-purple-500/15 border border-purple-500/30 text-purple-300 text-xs font-semibold capitalize">
+                {difficultyLevel}
               </span>
+            )}
+            {lesson.structured_sections?.grounding_map && (
+              <button
+                type="button"
+                onClick={() => setShowGrounding((prev) => !prev)}
+                className="px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-emerald-300 text-xs font-semibold hover:bg-emerald-500/20 transition-colors"
+              >
+                {showGrounding ? 'Hide Source Mapping' : 'Source Grounding Map'}
+              </button>
+            )}
+          </div>
+
+          {/* Source Grounding & Category Legend */}
+          {showGrounding && lesson.structured_sections?.grounding_map && (
+            <div className="p-4 rounded-xl bg-slate-950/80 border border-emerald-500/20 space-y-3 text-xs">
+              <div className="flex flex-wrap gap-2">
+                <span className="px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 font-semibold">[SOURCE-BASED] Directly supported by document</span>
+                <span className="px-2 py-0.5 rounded bg-indigo-500/15 text-indigo-300 font-semibold">[SUPPLEMENTARY EXPLANATION] Added examples/walkthroughs</span>
+                <span className="px-2 py-0.5 rounded bg-amber-500/15 text-amber-300 font-semibold">[ADVANCED EXTENSION] Beyond source scope</span>
+              </div>
+              {lesson.structured_sections.grounding_map.chunks && lesson.structured_sections.grounding_map.chunks.length > 0 && (
+                <div className="space-y-1.5 pt-1 border-t border-slate-800">
+                  <p className="text-slate-400 font-semibold">Retrieved Source Chunks:</p>
+                  {lesson.structured_sections.grounding_map.chunks.map((ch, idx) => (
+                    <div key={idx} className="p-2 rounded bg-slate-900/90 border border-slate-800 text-slate-300">
+                      <span className="text-indigo-300 font-mono mr-2">
+                        [Book p.{ch.printed_page || ch.page_number} / PDF p.{ch.page_number}]
+                      </span>
+                      <span className="text-slate-400">{ch.preview}…</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -198,11 +266,60 @@ export const LessonContentView: React.FC<LessonContentViewProps> = ({
           </div>
         )}
 
-        {/* Generating In-Progress State */}
-        {lesson.generation_status === 'generating' ? (
-          <div className="py-16 text-center space-y-4">
-            <Spinner size="lg" className="mx-auto text-indigo-400" />
-            <p className="text-slate-300 font-medium">Generating this lesson from course materials...</p>
+        {/* Generating / Queued In-Progress Pipeline Stepper */}
+        {(lesson.generation_status === 'generating' || lesson.generation_status === 'queued') ? (
+          <div className="py-10 px-4 max-w-xl mx-auto space-y-5">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <Spinner size="md" className="text-indigo-400 shrink-0" />
+                <div>
+                  <p className="text-sm font-bold text-white">
+                    {jobStatus?.current_stage || (lesson.generation_status === 'queued' ? 'Preparing source material' : 'Generating lesson content')}
+                  </p>
+                  <p className="text-xs text-slate-400">
+                    Elapsed: <span className="font-mono text-indigo-300">{Math.round(jobStatus?.elapsed_seconds || 0)}s</span>
+                    {jobStatus?.retry_count ? ` · Retry #${jobStatus.retry_count}` : ''}
+                  </p>
+                </div>
+              </div>
+              {onCancelGeneration && (
+                <Button size="sm" variant="ghost" onClick={onCancelGeneration}>
+                  Cancel
+                </Button>
+              )}
+            </div>
+
+            <div className="space-y-2 rounded-xl bg-slate-950/70 border border-slate-800 p-4 text-xs">
+              {[
+                { key: 'QUEUED', label: 'Preparing source material' },
+                { key: 'RETRIEVING_SOURCE', label: 'Retrieving relevant sections' },
+                { key: 'GENERATING', label: 'Generating lesson content' },
+                { key: 'VALIDATING', label: 'Validating technical explanations & exercises' },
+                { key: 'COMPLETED', label: 'Saving lesson' },
+              ].map((st, idx) => {
+                const order = ['QUEUED', 'RETRIEVING_SOURCE', 'GENERATING', 'VALIDATING', 'SAVING', 'COMPLETED'];
+                const curStatus = jobStatus?.status || (lesson.generation_status === 'queued' ? 'QUEUED' : 'GENERATING');
+                const curIdx = Math.max(0, order.indexOf(curStatus));
+                const done = idx < curIdx;
+                const active = idx === curIdx;
+                return (
+                  <div key={st.key} className="flex items-center gap-2.5">
+                    <span
+                      className={`h-2 w-2 rounded-full shrink-0 ${
+                        done ? 'bg-emerald-400' : active ? 'bg-indigo-400 animate-pulse' : 'bg-slate-700'
+                      }`}
+                    />
+                    <span className={done ? 'text-emerald-300' : active ? 'text-white font-semibold' : 'text-slate-500'}>
+                      {st.label}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+
+            <p className="text-xs text-slate-400 text-center">
+              You can navigate to other ready lessons while this lesson synthesizes in the background.
+            </p>
           </div>
         ) : (
           <>
@@ -229,6 +346,46 @@ export const LessonContentView: React.FC<LessonContentViewProps> = ({
                   ))}
                 </ul>
               </div>
+            )}
+
+            {/* Interactive Concept Cards */}
+            {lesson.structured_sections?.concept_cards &&
+              lesson.structured_sections.concept_cards.length > 0 && (
+                <InteractiveConceptDeck cards={lesson.structured_sections.concept_cards} />
+              )}
+
+            {/* Interactive Matching Exercise */}
+            {lesson.structured_sections?.matching_exercise && (
+              <InteractiveMatchingCard matching={lesson.structured_sections.matching_exercise} />
+            )}
+
+            {/* Selectable Architecture Diagram */}
+            {lesson.structured_sections?.architecture_diagram && (
+              <InteractiveArchitectureDiagram
+                diagram={lesson.structured_sections.architecture_diagram}
+              />
+            )}
+
+            {/* Functional Concept Simulator */}
+            {lesson.structured_sections?.simulator && (
+              <InteractiveSimulator simulator={lesson.structured_sections.simulator} />
+            )}
+
+            {/* Continuous Practical Course Project */}
+            {lesson.structured_sections?.project_step && (
+              <ProjectMilestoneCard
+                lessonId={lesson.id}
+                projectStep={lesson.structured_sections.project_step}
+              />
+            )}
+
+            {/* Interactive Grounded Exercises */}
+            {lesson.exercises && lesson.exercises.length > 0 && (
+              <LessonExercisesPanel
+                lessonId={lesson.id}
+                exercises={lesson.exercises}
+                onAskTutorHint={onAskTutorHint}
+              />
             )}
           </>
         )}

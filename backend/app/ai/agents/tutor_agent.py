@@ -1,3 +1,4 @@
+import asyncio
 import time
 from typing import List, Dict, Any, Optional
 from app.ai.rag.retriever import RAGRetriever
@@ -19,6 +20,9 @@ class TutorAgent:
         course_title: Optional[str] = None,
         lesson_id: Optional[int] = None,
         lesson_title: Optional[str] = None,
+        lesson_context: Optional[str] = None,
+        exercise_prompt: Optional[str] = None,
+        tutor_mode: Optional[str] = None,
         history: Optional[List[Dict[str, str]]] = None,
     ) -> Dict[str, Any]:
         start_time = time.perf_counter()
@@ -72,7 +76,8 @@ class TutorAgent:
         if document_id and document_id not in target_doc_ids:
             target_doc_ids.append(document_id)
 
-        passages = RAGRetriever.retrieve(
+        passages = await asyncio.to_thread(
+            RAGRetriever.retrieve,
             query=effective_query,
             user_id=user_id,
             document_id=document_id if not target_doc_ids else None,
@@ -134,11 +139,27 @@ class TutorAgent:
             "7. Conclude with a thought-provoking Socratic question to check the student's understanding."
         )
 
+        mode_instruction = ""
+        if tutor_mode == "hint_only":
+            mode_instruction = "\nTutor Mode: HINT ONLY — Guide the student toward the solution with a clear step-by-step hint WITHOUT giving away the final answer or complete solution code."
+        elif tutor_mode == "explain_simple":
+            mode_instruction = "\nTutor Mode: EXPLAIN SIMPLY — Use plain language and an intuitive analogy first."
+        elif tutor_mode == "explain_code":
+            mode_instruction = "\nTutor Mode: EXPLAIN CODE — Walk through execution step by step with input/output clarity."
+        elif tutor_mode == "practice_question":
+            mode_instruction = "\nTutor Mode: PRACTICE QUESTION — Ask 1 targeted check question and invite the student to reply."
+
+        lesson_ctx_block = f"\nActive Lesson Excerpt:\n{lesson_context[:1000]}\n" if lesson_context else ""
+        exercise_ctx_block = f"\nActive Exercise Prompt:\n{exercise_prompt[:500]}\n" if exercise_prompt else ""
+
         user_prompt = (
             f"{history_formatted}"
             f"Active Context: Course = {clean_course}"
-            f"{f', Lesson = {lesson_title}' if lesson_title else ''}\n"
-            f"Student Question: {question}\n\n"
+            f"{f', Lesson = {lesson_title}' if lesson_title else ''}"
+            f"{mode_instruction}\n"
+            f"Student Question: {question}\n"
+            f"{lesson_ctx_block}"
+            f"{exercise_ctx_block}\n"
             f"Verified Study Material Excerpts:\n"
             f"{context_str}\n\n"
             "Provide your structured educational explanation:"

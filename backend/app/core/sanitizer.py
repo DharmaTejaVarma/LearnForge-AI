@@ -30,26 +30,78 @@ class EducationalSanitizer:
         if not raw:
             return f"{fallback_prefix} Study Guide"
 
-        # Strip file extension
-        title = re.sub(r"\.(pdf|docx|txt|md)$", "", raw, flags=re.IGNORECASE).strip()
+        # Strip file extension and hash upload prefix (e.g. 07b811c8e2e04685b3482351d590631d_)
+        title = re.sub(r"\.(pdf|docx|pptx|txt|md|markdown)$", "", raw, flags=re.IGNORECASE).strip()
+        title = re.sub(r"^[0-9a-f]{24,36}[_-]+", "", title, flags=re.IGNORECASE)
+
+        # Strip common scraper/publisher/ISBN noise anywhere in filenames or titles
+        title = re.sub(
+            r"(?:^|[\s._-])(?:dokumen\.?pub|z-?lib(?:rary)?|pdfdrive|oceanofpdf)(?=[\s._-]|$)",
+            " ",
+            title,
+            flags=re.IGNORECASE,
+        )
+        title = re.sub(r"(?:^|[\s._-])(?:\d*nbsped|isbn(?:-1[03])?:?)(?=[\s._-]|$)", " ", title, flags=re.IGNORECASE)
+        title = re.sub(r"\b97[89][\d\-]{7,13}\b|\b\d{9}[\dXx]\b", " ", title)
 
         # Check if the title is mostly random digits, ISBNs, or hash artifacts
-        clean_check = re.sub(r"[\d\-_]", "", title)
-        if len(clean_check) < 4 or re.match(r"^(?:nbsped|isbn|\d+)", title, re.IGNORECASE):
+        clean_check = re.sub(r"[\d\-_\s]", "", title)
+        if len(clean_check) < 2:
             return f"{fallback_prefix} Study Guide"
 
         # Replace underscores and hyphens with spaces
         title = re.sub(r"[-_]+", " ", title)
 
-        # Remove repetitive prefixes like "Lecture", numbers at the very start
-        title = re.sub(r"^\d+\s*", "", title)
+        # Remove leading pure digits ONLY if not part of "Chapter 1" / "Module 2" / "Part I"
+        title = re.sub(r"^\d+[\s\.\-:]*(?=[A-Za-z])", "", title)
 
-        # Capitalize words neatly
+        # Capitalize words neatly while preserving technical acronyms and compound tokens
+        special_cases = {
+            "fastapi": "FastAPI",
+            "restful": "RESTful",
+            "rest(ful)": "RESTful",
+            "apis": "APIs",
+            "json:api": "JSON:API",
+            "graphql": "GraphQL",
+            "sqlite": "SQLite",
+            "uploadfile": "UploadFile",
+            "fileresponse": "FileResponse",
+            "streamingresponse": "StreamingResponse",
+            "oauth2": "OAuth2",
+            "pydantic": "Pydantic",
+            "starlette": "Starlette",
+        }
+        acronyms = {
+            "api", "http", "https", "rest", "sql", "nosql", "json", "html", "css",
+            "ai", "ml", "oop", "csv", "psv", "tsv", "xml", "yaml", "etl", "rpc",
+            "jwt", "orm", "mvc", "cli", "ui", "db", "io", "cpu", "url", "urls", "asgi",
+        }
         words = title.split()
-        capitalized = [w.capitalize() if not w.isupper() else w for w in words]
+        capitalized = []
+        for w in words:
+            lw_full = w.lower()
+            if lw_full in special_cases:
+                capitalized.append(special_cases[lw_full])
+                continue
+            m = re.match(r"^([^A-Za-z0-9]*)([A-Za-z0-9]+)([^A-Za-z0-9]*)$", w)
+            if m:
+                lead, core, trail = m.groups()
+                lc = core.lower()
+                if lc in special_cases:
+                    capitalized.append(f"{lead}{special_cases[lc]}{trail}")
+                    continue
+                if lc in acronyms:
+                    capitalized.append(f"{lead}{core.upper()}{trail}")
+                    continue
+                if core.isupper() and len(core) <= 5:
+                    capitalized.append(w)
+                    continue
+                capitalized.append(f"{lead}{core.capitalize()}{trail}")
+            else:
+                capitalized.append(w.capitalize())
         clean_result = " ".join(capitalized).strip()
 
-        return clean_result if len(clean_result) > 3 else f"{fallback_prefix} Study Guide"
+        return clean_result if len(clean_result) >= 2 else f"{fallback_prefix} Study Guide"
 
     @classmethod
     def contains_metadata_leak(cls, text: str) -> bool:
@@ -132,19 +184,33 @@ class EducationalSanitizer:
     @classmethod
     def validate_quiz_question(cls, q: Dict[str, Any]) -> bool:
         """
-        Validates a multiple-choice question.
-        Ensures exactly 4 valid options, correct answer presence, and zero metadata leakage.
+        Validates a quiz question across supported formats:
+        - mcq: 4 unique options + valid answer matching an option or letter A-D
+        - true_false: answer True/False and 2 options ['True', 'False']
+        - short_answer: concise non-empty expected answer & explanation
         """
         if not isinstance(q, dict):
             return False
 
+        q_type = str(q.get("question_type", "mcq")).strip().lower()
         q_text = str(q.get("question_text", "")).strip()
         options = q.get("options", [])
         correct = str(q.get("correct_answer", "")).strip()
         explanation = str(q.get("explanation", "")).strip()
 
-        if len(q_text) < 15 or len(correct) < 1 or len(explanation) < 10:
+        if len(q_text) < 12 or len(correct) < 1 or len(explanation) < 8:
             return False
+
+        if cls.contains_metadata_leak(q_text) or cls.contains_metadata_leak(explanation) or cls.contains_metadata_leak(correct):
+            return False
+
+        if q_type == "true_false":
+            if correct.lower() not in ("true", "false"):
+                return False
+            return True
+
+        if q_type == "short_answer":
+            return len(correct) >= 3
 
         if not isinstance(options, list) or len(options) != 4:
             return False
@@ -154,27 +220,18 @@ class EducationalSanitizer:
         if len(cleaned_options) != 4 or len(set(cleaned_options)) != 4:
             return False
 
-        # Verify no metadata leakage in question or options
-        if cls.contains_metadata_leak(q_text) or cls.contains_metadata_leak(explanation):
-            return False
         for opt in cleaned_options:
             if cls.contains_metadata_leak(opt):
                 return False
 
-        # Verify correct answer matches one of the options
-        # Handle cases where correct is 'A', 'B', 'C', 'D' or matches the option text
-        valid_match = False
         letter_map = {"a": 0, "b": 1, "c": 2, "d": 3}
         clean_correct = correct.strip().lower()
 
-        if clean_correct in letter_map:
-            valid_match = True
-        elif clean_correct.startswith(("a)", "b)", "c)", "d)")):
-            valid_match = True
-        else:
-            for opt in cleaned_options:
-                if clean_correct in opt.lower() or opt.lower() in clean_correct:
-                    valid_match = True
-                    break
+        if clean_correct in letter_map or clean_correct.startswith(("a)", "b)", "c)", "d)", "a.", "b.", "c.", "d.")):
+            return True
 
-        return valid_match
+        for opt in cleaned_options:
+            if clean_correct in opt.lower() or opt.lower() in clean_correct:
+                return True
+
+        return False

@@ -75,6 +75,10 @@ class DocumentLoader:
             for idx in range(len(doc)):
                 page_num = idx + 1
                 page = doc[idx]
+                try:
+                    printed_page = (page.get_label() or "").strip() or str(page_num)
+                except Exception:
+                    printed_page = str(page_num)
 
                 # Extract text using block extraction to preserve layout
                 text = ""
@@ -109,10 +113,19 @@ class DocumentLoader:
 
                 pages.append({
                     "page_number": page_num,
+                    "printed_page": printed_page,
                     "text": text,
                     "char_count": len(text),
                     "headings": headings,
-                    "toc": [e for e in toc_entries if e["page"] == page_num]
+                    "toc": [e for e in toc_entries if e["page"] == page_num],
+                    **(
+                        {
+                            "doc_title": str((doc.metadata or {}).get("title") or "").strip(),
+                            "doc_author": str((doc.metadata or {}).get("author") or "").strip().rstrip(";"),
+                        }
+                        if idx == 0
+                        else {}
+                    ),
                 })
                 total_text += text
 
@@ -440,19 +453,96 @@ class DocumentLoader:
     # Document Structure Extraction (TOC / heading / window fallback)
     # -------------------------------------------------------------------------
     # Front/back-matter keywords to skip when building the outline
-    _FRONTMATTER_KEYWORDS = frozenset([
-        "preface", "foreword", "introduction", "table of contents", "contents",
-        "acknowledgment", "acknowledgement", "copyright", "dedication",
-        "about the author", "about the book", "colophon", "errata",
-        "index", "appendix", "bibliography", "references", "glossary",
-        "permissions", "legal notice", "trademark", "license",
+    _FRONTMATTER_PHRASES = frozenset([
+        "cover", "front cover", "back cover", "title page", "half title",
+        "table of contents", "preface", "foreword", "acknowledgment",
+        "acknowledgement", "copyright", "dedication", "about the author",
+        "about the book", "about this book", "colophon", "errata",
+        "bibliography", "glossary", "permissions", "legal notice",
+        "trademark", "license", "conventions used", "using code examples",
+        "how to contact", "safari books", "who this book is for",
+        "praise for", "o'reilly", "o’reilly",
+    ])
+    _FRONTMATTER_EXACT = frozenset([
+        "contents", "index", "references", "appendix", "appendices",
     ])
 
     @classmethod
     def _is_frontback_matter(cls, title: str) -> bool:
         """Returns True if the section title looks like front/back matter."""
-        t = title.strip().lower()
-        return any(kw in t for kw in cls._FRONTMATTER_KEYWORDS)
+        t = re.sub(r"\s+", " ", title.strip().lower())
+        if not t:
+            return True
+        if t in cls._FRONTMATTER_EXACT:
+            return True
+        # Explicit chapters/parts/modules are instructional unless marked as appendix/index/toc
+        if re.match(r"^(?:chapter|module|unit|lesson)\s+\d+\b", t):
+            return False
+        if re.match(r"^(?:appendix\b(?:\s+[a-z0-9]+)?|bibliography|glossary|index\b(?:\s+of\b)?|references)\b[:.\-]?$", t):
+            return True
+        if re.match(r"^appendix\s+[a-z0-9]+\b", t):
+            return True
+        # Whole-word phrase check so 'cover' never matches 'discovery' or 'recovery'
+        return any(re.search(rf"\b{re.escape(kw)}\b", t) for kw in cls._FRONTMATTER_PHRASES)
+
+    @staticmethod
+    def _page_label(doc, page_num: int) -> str:
+        """Safely return the printed page label for a 1-based physical page number."""
+        try:
+            idx = max(0, min(len(doc) - 1, page_num - 1))
+            return (doc[idx].get_label() or "").strip() or str(page_num)
+        except Exception:
+            return str(page_num)
+
+    @classmethod
+    def get_page_labels_map(cls, file_path: str) -> Dict[int, str]:
+        """Return {physical_page_num: printed_label} for a PDF, or {} for non-PDFs."""
+        try:
+            ext = cls.detect_format(file_path, None)
+            if ext != ".pdf":
+                return {}
+            import pymupdf
+            doc = pymupdf.open(file_path)
+            mapping = {i + 1: cls._page_label(doc, i + 1) for i in range(len(doc))}
+            doc.close()
+            return mapping
+        except Exception:
+            return {}
+
+    @classmethod
+    def extract_page_texts_range(
+        cls,
+        file_path: str,
+        mime_type: Optional[str],
+        page_start: Optional[int],
+        page_end: Optional[int],
+    ) -> List[Dict[str, Any]]:
+        """Read clean per-page text & printed page labels for an exact physical page span."""
+        try:
+            ext = cls.detect_format(file_path, mime_type)
+            if ext == ".pdf":
+                import pymupdf
+                doc = pymupdf.open(file_path)
+                total = len(doc)
+                p1 = max(1, min(total, page_start or 1))
+                p2 = max(p1, min(total, page_end or p1))
+                out: List[Dict[str, Any]] = []
+                for p in range(p1, p2 + 1):
+                    page = doc[p - 1]
+                    out.append({
+                        "page_number": p,
+                        "printed_page": cls._page_label(doc, p),
+                        "text": page.get_text() or "",
+                    })
+                doc.close()
+                return out
+            all_pages = cls.load_document(file_path, mime_type)
+            if page_start and page_end:
+                filtered = [p for p in all_pages if page_start <= p.get("page_number", 1) <= page_end]
+                return filtered or all_pages
+            return all_pages
+        except Exception:
+            return []
 
     @classmethod
     def extract_structure(cls, file_path: str, mime_type: Optional[str] = None) -> List[Dict[str, Any]]:
@@ -500,21 +590,43 @@ class DocumentLoader:
         toc = doc.get_toc()
         if toc:
             entries: List[Dict[str, Any]] = []
+            skipped_parent_level: Optional[int] = None
             for item in toc:
                 if len(item) < 3:
                     continue
                 level, title, page = int(item[0]), str(item[1]).strip(), int(item[2])
-                if cls._is_frontback_matter(title):
-                    continue
                 if not title or page < 1:
                     continue
-                entries.append({"title": title, "level": level, "page_start": page, "page_end": page})
+
+                if skipped_parent_level is not None:
+                    if level > skipped_parent_level:
+                        continue
+                    skipped_parent_level = None
+
+                if cls._is_frontback_matter(title):
+                    skipped_parent_level = level
+                    continue
+
+                entries.append({
+                    "title": title,
+                    "level": level,
+                    "page_start": page,
+                    "page_end": page,
+                    "printed_page_start": cls._page_label(doc, page),
+                    "printed_page_end": cls._page_label(doc, page),
+                })
 
             if entries:
-                # Compute page_end from next section's page_start
-                for i in range(len(entries) - 1):
-                    entries[i]["page_end"] = max(entries[i]["page_start"], entries[i + 1]["page_start"] - 1)
-                entries[-1]["page_end"] = total_pages
+                # Compute hierarchical page_end up to the next sibling/parent heading (level <= entries[i].level)
+                for i in range(len(entries)):
+                    lvl_i = entries[i]["level"]
+                    end_p = total_pages
+                    for j in range(i + 1, len(entries)):
+                        if entries[j]["level"] <= lvl_i:
+                            end_p = max(entries[i]["page_start"], entries[j]["page_start"] - 1)
+                            break
+                    entries[i]["page_end"] = end_p
+                    entries[i]["printed_page_end"] = cls._page_label(doc, end_p)
                 doc.close()
                 return entries
 
@@ -598,11 +710,14 @@ class DocumentLoader:
 
                         if max_size >= heading_threshold or (is_bold and max_size >= median_size):
                             level = 1 if max_size >= median_size * 1.3 else 2
+                            label = cls._page_label(doc, page_num)
                             entries.append({
                                 "title": line_text,
                                 "level": level,
                                 "page_start": page_num,
                                 "page_end": page_num,
+                                "printed_page_start": label,
+                                "printed_page_end": label,
                             })
             except Exception:
                 continue
@@ -618,9 +733,12 @@ class DocumentLoader:
             deduplicated.append(e)
 
         for i in range(len(deduplicated) - 1):
-            deduplicated[i]["page_end"] = max(deduplicated[i]["page_start"], deduplicated[i + 1]["page_start"] - 1)
+            end_p = max(deduplicated[i]["page_start"], deduplicated[i + 1]["page_start"] - 1)
+            deduplicated[i]["page_end"] = end_p
+            deduplicated[i]["printed_page_end"] = cls._page_label(doc, end_p)
         if deduplicated:
             deduplicated[-1]["page_end"] = total_pages
+            deduplicated[-1]["printed_page_end"] = cls._page_label(doc, total_pages)
 
         return deduplicated
 

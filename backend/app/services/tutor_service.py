@@ -2,11 +2,12 @@ import uuid
 from typing import List, Dict, Any, Optional
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.db.models.learning_tools import TutorConversation
-from app.db.models.course import Course, Lesson
+from sqlalchemy.orm import selectinload
+from app.db.models.learning_tools import TutorConversation, AgentExecutionLog
+from app.db.models.course import Course, Chapter, Topic, Lesson
 from app.db.models.document import UploadedDocument
 from app.schemas.learning_tools import TutorChatRequest, TutorChatResponse, TutorConversationItem
-from app.ai.agents.tutor_agent import TutorAgent
+from app.ai.graphs.learning_graph import LearningGraph
 from app.core.exceptions import NotFoundException, ForbiddenException
 from app.core.logging import logger
 
@@ -42,12 +43,36 @@ class TutorService:
             if doc.id not in target_doc_ids:
                 target_doc_ids.append(doc.id)
 
-        # 3. Validate Lesson Context
+        # 3. Validate Lesson Context & Ownership
+        lesson_context: Optional[str] = None
+        exercise_prompt: Optional[str] = None
         if req.lesson_id:
-            lesson_res = await db.execute(select(Lesson).where(Lesson.id == req.lesson_id))
+            lesson_res = await db.execute(
+                select(Lesson)
+                .where(Lesson.id == req.lesson_id)
+                .options(
+                    selectinload(Lesson.topic)
+                    .selectinload(Topic.chapter)
+                    .selectinload(Chapter.course),
+                    selectinload(Lesson.exercises),
+                )
+            )
             lesson = lesson_res.scalars().first()
-            if lesson:
-                lesson_title = lesson.title
+            if not lesson:
+                raise NotFoundException("Specified lesson not found")
+            if lesson.topic.chapter.course.user_id != user_id:
+                raise ForbiddenException("Unauthorized lesson access")
+            lesson_title = lesson.title
+            if lesson.content:
+                lesson_context = lesson.content[:1200]
+            if not course_title and lesson.topic and lesson.topic.chapter and lesson.topic.chapter.course:
+                course_title = lesson.topic.chapter.course.title
+                if lesson.topic.chapter.course.document_id and lesson.topic.chapter.course.document_id not in target_doc_ids:
+                    target_doc_ids.append(lesson.topic.chapter.course.document_id)
+            if req.exercise_id and lesson.exercises:
+                matched_ex = next((e for e in lesson.exercises if e.id == req.exercise_id), None)
+                if matched_ex:
+                    exercise_prompt = matched_ex.prompt
 
         # 4. Resolve or generate conversation_id session
         conversation_id = req.conversation_id or f"conv_{uuid.uuid4().hex[:12]}"
@@ -74,20 +99,28 @@ class TutorService:
             formatted_history.append({"role": "user", "content": conv.question})
             formatted_history.append({"role": "assistant", "content": conv.answer})
 
-        # 6. Execute Socratic Tutor Agent with Intent Routing & RAG
-        agent_res = await TutorAgent.respond_to_query(
-            question=req.question,
-            user_id=user_id,
-            document_id=req.document_id,
-            document_ids=target_doc_ids,
-            course_id=req.course_id,
-            course_title=course_title,
-            lesson_id=req.lesson_id,
-            lesson_title=lesson_title,
-            history=formatted_history,
+        # 6. Execute Socratic Tutor + Resource enrichment through compiled LangGraph StateGraph
+        graph_state = await LearningGraph.run_workflow(
+            {
+                "workflow_type": "tutor_chat",
+                "user_id": user_id,
+                "document_id": req.document_id,
+                "document_ids": target_doc_ids,
+                "course_id": req.course_id,
+                "course_title": course_title,
+                "lesson_id": req.lesson_id,
+                "lesson_title": lesson_title,
+                "lesson_context": lesson_context,
+                "exercise_prompt": exercise_prompt,
+                "tutor_mode": req.tutor_mode,
+                "query": req.question,
+                "history": formatted_history,
+            },
+            thread_id=f"tutor_{user_id}_{conversation_id}",
         )
+        agent_res = graph_state.get("generated_output") or {}
 
-        # 7. Persist turn into SQLite database
+        # 7. Persist turn and LangGraph agent execution telemetry in SQLite
         new_conv = TutorConversation(
             user_id=user_id,
             document_id=req.document_id,
@@ -95,16 +128,28 @@ class TutorService:
             conversation_id=conversation_id,
             intent=agent_res.get("intent", "educational_question"),
             question=req.question,
-            answer=agent_res["answer"],
+            answer=agent_res.get("answer", ""),
             citations=agent_res.get("citations", []),
         )
         db.add(new_conv)
+        db.add(
+            AgentExecutionLog(
+                user_id=user_id,
+                agent_name="LearningGraph:Tutor",
+                task_type="tutor_chat",
+                status="success" if graph_state.get("validation_passed") else "fallback",
+                latency_ms=float(agent_res.get("latency_ms", 0.0)),
+                input_summary=req.question[:180],
+                output_summary=f"intent={agent_res.get('intent')}, nodes={len(graph_state.get('trace', []))}",
+            )
+        )
         await db.commit()
         await db.refresh(new_conv)
 
         return TutorChatResponse(
-            answer=agent_res["answer"],
+            answer=agent_res.get("answer", ""),
             citations=agent_res.get("citations", []),
+            resources=agent_res.get("resources", []),
             provider_used=agent_res.get("provider_used", "unknown"),
             latency_ms=agent_res.get("latency_ms", 0.0),
             conversation_id=conversation_id,
@@ -168,9 +213,17 @@ class TutorService:
     ) -> List[str]:
         """Generates dynamic suggested questions tailored to the active course or lesson."""
         if lesson_id:
-            l_res = await db.execute(select(Lesson).where(Lesson.id == lesson_id))
+            l_res = await db.execute(
+                select(Lesson)
+                .where(Lesson.id == lesson_id)
+                .options(
+                    selectinload(Lesson.topic)
+                    .selectinload(Topic.chapter)
+                    .selectinload(Chapter.course)
+                )
+            )
             lesson = l_res.scalars().first()
-            if lesson:
+            if lesson and lesson.topic.chapter.course.user_id == user_id:
                 return [
                     f"Explain '{lesson.title}' in simple terms.",
                     f"Give me a practical real-world example of '{lesson.title}'.",
@@ -179,7 +232,9 @@ class TutorService:
                 ]
 
         if course_id:
-            c_res = await db.execute(select(Course).where(Course.id == course_id))
+            c_res = await db.execute(
+                select(Course).where(Course.id == course_id, Course.user_id == user_id)
+            )
             course = c_res.scalars().first()
             if course:
                 suggestions = [

@@ -1,6 +1,13 @@
+import os
 from typing import List
 from app.core.config import settings
 from app.core.logging import logger
+
+# Prevent transformers from importing TensorFlow/Keras (~90s startup overhead on CPU)
+os.environ.setdefault("USE_TF", "0")
+os.environ.setdefault("TRANSFORMERS_NO_TF", "1")
+os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+
 
 class EmbeddingService:
     """Generates dense vector embeddings using local Sentence Transformers."""
@@ -12,7 +19,10 @@ class EmbeddingService:
         if cls._model is None:
             logger.info(f"Loading local Sentence Transformer model: {settings.EMBEDDING_MODEL}")
             from sentence_transformers import SentenceTransformer
-            cls._model = SentenceTransformer(settings.EMBEDDING_MODEL)
+            try:
+                cls._model = SentenceTransformer(settings.EMBEDDING_MODEL, local_files_only=True)
+            except Exception:
+                cls._model = SentenceTransformer(settings.EMBEDDING_MODEL)
             logger.info("Sentence Transformer model loaded successfully.")
         return cls._model
 
@@ -21,7 +31,7 @@ class EmbeddingService:
         if not texts:
             return []
         model = cls.get_model()
-        embeddings = model.encode(texts, convert_to_numpy=True, show_progress_bar=False)
+        embeddings = model.encode(texts, batch_size=64, convert_to_numpy=True, show_progress_bar=False)
         return [emb.tolist() for emb in embeddings]
 
     @classmethod

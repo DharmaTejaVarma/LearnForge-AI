@@ -18,7 +18,7 @@ engine = create_async_engine(
     settings.DATABASE_URL,
     echo=False,
     future=True,
-    connect_args={"check_same_thread": False} if "sqlite" in settings.DATABASE_URL else {},
+    connect_args={"check_same_thread": False, "timeout": 30.0} if "sqlite" in settings.DATABASE_URL else {},
 )
 
 # Enforce SQLite Pragmas (Foreign Keys and WAL mode)
@@ -29,7 +29,7 @@ def set_sqlite_pragma(dbapi_connection, connection_record):
         cursor.execute("PRAGMA foreign_keys=ON;")
         cursor.execute("PRAGMA journal_mode=WAL;")
         cursor.execute("PRAGMA synchronous=NORMAL;")
-        cursor.execute("PRAGMA busy_timeout=5000;")
+        cursor.execute("PRAGMA busy_timeout=30000;")
         cursor.close()
 
 # Session Factory
@@ -48,7 +48,8 @@ async def get_db():
             yield session
         except Exception as e:
             await session.rollback()
-            logger.error(f"Database session rollback due to error: {e}")
+            if e.__class__.__name__ != "ClientDisconnected":
+                logger.error(f"Database session rollback due to error: {e}")
             raise
         finally:
             await session.close()

@@ -218,6 +218,7 @@ class TextCleaner:
 
             cleaned_pages.append({
                 "page_number": p.get("page_number", 1),
+                "printed_page": p.get("printed_page") or str(p.get("page_number", 1)),
                 "text": cleaned_text,
                 "char_count": len(cleaned_text),
                 "headings": p.get("headings", []),

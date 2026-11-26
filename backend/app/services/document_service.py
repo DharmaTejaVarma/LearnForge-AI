@@ -1,14 +1,17 @@
+import asyncio
 import os
+import sys
 import uuid
 import hashlib
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Set
 from fastapi import UploadFile
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
-from app.core.exceptions import BadRequestException, NotFoundException, ForbiddenException
+from app.core.exceptions import BadRequestException, NotFoundException, ForbiddenException, ConflictException
 from app.core.logging import logger
+from app.db.database import AsyncSessionLocal
 from app.db.models.document import UploadedDocument
 from app.schemas.document import DocumentResponse, DocumentDetailResponse
 from app.ai.rag.document_loader import DocumentLoader
@@ -19,8 +22,87 @@ from app.ai.rag.vector_store import VectorStoreManager
 
 MAX_FILE_SIZE = 25 * 1024 * 1024  # 25 MB
 ALLOWED_EXTENSIONS = {".pdf", ".docx", ".txt", ".pptx", ".md", ".markdown"}
+_doc_bg_tasks: Set[asyncio.Task] = set()
 
 class DocumentService:
+    @staticmethod
+    def _validate_file_signature(file_ext: str, content: bytes) -> None:
+        """Validate file magic bytes / binary safety against claimed extension."""
+        if file_ext == ".pdf":
+            if not content.lstrip()[:5].startswith(b"%PDF-"):
+                raise BadRequestException("Invalid PDF signature: file content does not match PDF format.")
+        elif file_ext in (".docx", ".pptx"):
+            if not content.startswith(b"PK\x03\x04"):
+                raise BadRequestException(f"Invalid {file_ext.upper()} archive signature: file may be corrupted or mismatched.")
+        elif file_ext in (".txt", ".md", ".markdown"):
+            if b"\x00" in content[:4096]:
+                raise BadRequestException("Binary null bytes detected inside text/markdown document.")
+
+    @staticmethod
+    async def _extract_and_index_document(db: AsyncSession, doc: UploadedDocument) -> UploadedDocument:
+        """Extract text, detect structural sections, chunk, embed, and index vectors into ChromaDB."""
+        extracted_pages = await asyncio.to_thread(DocumentLoader.load_document, doc.file_path, doc.mime_type)
+        cleaned_pages = await asyncio.to_thread(TextCleaner.clean_document_pages, extracted_pages)
+        total_chars = sum(p["char_count"] for p in cleaned_pages)
+        page_count = len(cleaned_pages)
+
+        # Extract structural sections/headings when loader supports it
+        structure = None
+        if hasattr(DocumentLoader, "extract_structure"):
+            try:
+                structure = await asyncio.to_thread(DocumentLoader.extract_structure, doc.file_path, doc.mime_type)
+            except Exception as struct_err:
+                logger.debug(f"Structure extraction skipped for doc={doc.id}: {struct_err}")
+
+        doc.page_count = page_count
+        doc.character_count = total_chars
+        doc.structure = structure
+        doc.processing_status = "processed"
+        doc.error_message = None
+        await db.commit()
+        await db.refresh(doc)
+
+        async def _run_vector_indexing(doc_id: int, uid: int, fname: str, pages_data: List[dict]) -> None:
+            chunker = ChunkingService(chunk_size=settings.CHUNK_SIZE, chunk_overlap=settings.CHUNK_OVERLAP)
+            chunks = await asyncio.to_thread(
+                chunker.chunk_pages,
+                pages=pages_data,
+                document_id=doc_id,
+                user_id=uid,
+                filename=fname,
+            )
+            if not chunks:
+                return
+            texts = [c["text"] for c in chunks]
+            embeddings = await asyncio.to_thread(EmbeddingService.embed_texts, texts)
+            await asyncio.to_thread(
+                VectorStoreManager.index_document_chunks,
+                user_id=uid,
+                document_id=doc_id,
+                chunks=chunks,
+                embeddings=embeddings,
+            )
+            async with AsyncSessionLocal() as bg_sess:
+                row = await bg_sess.get(UploadedDocument, doc_id)
+                if row:
+                    row.processing_status = "indexed"
+                    await bg_sess.commit()
+            logger.info(f"Indexed document id={doc_id}: {page_count} pages, {len(chunks)} chunks")
+
+        if "pytest" in sys.modules:
+            await _run_vector_indexing(doc.id, doc.user_id, doc.original_filename, cleaned_pages)
+            await db.refresh(doc)
+        else:
+            # Return immediately after text + structure extraction (~1s); embed & index vectors in background
+            task = asyncio.create_task(
+                _run_vector_indexing(doc.id, doc.user_id, doc.original_filename, cleaned_pages)
+            )
+            _doc_bg_tasks.add(task)
+            task.add_done_callback(_doc_bg_tasks.discard)
+            logger.info(f"Processed document id={doc.id} ({page_count} pages); background vector indexing queued")
+
+        return doc
+
     @staticmethod
     async def upload_document(
         db: AsyncSession,
@@ -46,7 +128,22 @@ class DocumentService:
         if file_size == 0:
             raise BadRequestException("Uploaded file is empty (0 bytes).")
 
+        DocumentService._validate_file_signature(file_ext, content)
         file_hash = hashlib.sha256(content).hexdigest()
+
+        # Prevent duplicate processing for the same user & file hash
+        dup_res = await db.execute(
+            select(UploadedDocument).where(
+                UploadedDocument.user_id == user_id,
+                UploadedDocument.file_hash == file_hash,
+                UploadedDocument.processing_status.in_(["processed", "indexed"]),
+            )
+        )
+        existing_doc = dup_res.scalars().first()
+        if existing_doc:
+            raise ConflictException(
+                f"Duplicate document: '{existing_doc.original_filename}' with identical content is already uploaded."
+            )
 
         # Generate unique local stored filename
         unique_id = uuid.uuid4().hex
@@ -76,42 +173,9 @@ class DocumentService:
         await db.commit()
         await db.refresh(doc)
 
-        # Extract text via Universal DocumentLoader
+        # Extract text via Universal DocumentLoader (offloaded to thread pool)
         try:
-            extracted_pages = DocumentLoader.load_document(str(file_path), doc.mime_type)
-            cleaned_pages = TextCleaner.clean_document_pages(extracted_pages)
-            total_chars = sum(p["char_count"] for p in cleaned_pages)
-            page_count = len(cleaned_pages)
-
-            doc.page_count = page_count
-            doc.character_count = total_chars
-            doc.processing_status = "processed"
-            await db.commit()
-            await db.refresh(doc)
-
-            # RAG Pipeline: Chunking & Local Vector Indexing
-            chunker = ChunkingService(chunk_size=800, chunk_overlap=150)
-            chunks = chunker.chunk_pages(
-                pages=cleaned_pages,
-                document_id=doc.id,
-                user_id=user_id,
-                filename=original_name,
-            )
-
-            if chunks:
-                texts = [c["text"] for c in chunks]
-                embeddings = EmbeddingService.embed_texts(texts)
-                VectorStoreManager.index_document_chunks(
-                    user_id=user_id,
-                    document_id=doc.id,
-                    chunks=chunks,
-                    embeddings=embeddings,
-                )
-                doc.processing_status = "indexed"
-                await db.commit()
-                await db.refresh(doc)
-
-            logger.info(f"Successfully processed & indexed document id={doc.id}: {page_count} pages, {len(chunks)} chunks")
+            doc = await DocumentService._extract_and_index_document(db, doc)
         except Exception as e:
             logger.warning(f"RAG processing failed for document id={doc.id}: {e}")
             doc.processing_status = "failed"
@@ -123,8 +187,40 @@ class DocumentService:
         return DocumentResponse.model_validate(doc)
 
     @staticmethod
-    async def list_user_documents(db: AsyncSession, user_id: int) -> List[DocumentResponse]:
-        query = select(UploadedDocument).where(UploadedDocument.user_id == user_id).order_by(UploadedDocument.id.desc())
+    async def reprocess_document(db: AsyncSession, user_id: int, doc_id: int) -> DocumentResponse:
+        """Purge stale vectors and re-run extraction, chunking, and embedding indexing."""
+        doc = await DocumentService.get_user_document(db, user_id, doc_id)
+        if not Path(doc.file_path).exists():
+            raise BadRequestException("Source file no longer exists on disk and cannot be reprocessed.")
+
+        VectorStoreManager.delete_document_vectors(user_id=user_id, document_id=doc_id)
+        from app.ai.rag.retriever import RAGRetriever
+        RAGRetriever.invalidate_cache()
+        try:
+            doc = await DocumentService._extract_and_index_document(db, doc)
+        except Exception as e:
+            doc.processing_status = "failed"
+            doc.error_message = str(e)
+            await db.commit()
+            await db.refresh(doc)
+            raise
+        return DocumentResponse.model_validate(doc)
+
+    @staticmethod
+    async def list_user_documents(
+        db: AsyncSession,
+        user_id: int,
+        search: Optional[str] = None,
+        status_filter: Optional[str] = None,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> List[DocumentResponse]:
+        query = select(UploadedDocument).where(UploadedDocument.user_id == user_id)
+        if search:
+            query = query.where(UploadedDocument.original_filename.ilike(f"%{search.strip()}%"))
+        if status_filter:
+            query = query.where(UploadedDocument.processing_status == status_filter.strip())
+        query = query.order_by(UploadedDocument.id.desc()).offset(max(0, skip)).limit(min(max(1, limit), 200))
         result = await db.execute(query)
         docs = result.scalars().all()
         return [DocumentResponse.model_validate(d) for d in docs]
@@ -148,6 +244,8 @@ class DocumentService:
 
         # 1. Remove vector records from ChromaDB
         VectorStoreManager.delete_document_vectors(user_id=user_id, document_id=doc_id)
+        from app.ai.rag.retriever import RAGRetriever
+        RAGRetriever.invalidate_cache()
 
         # 2. Remove local file from disk
         local_file = Path(doc.file_path)

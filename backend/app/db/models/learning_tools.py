@@ -26,8 +26,12 @@ class Flashcard(Base, TimestampMixin):
 
     front_prompt: Mapped[str] = mapped_column(Text, nullable=False)
     back_answer: Mapped[str] = mapped_column(Text, nullable=False)
+    difficulty: Mapped[str] = mapped_column(String(32), default="medium", nullable=False)
     review_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     mastery_level: Mapped[str] = mapped_column(String(32), default="new", nullable=False) # new, reviewing, mastered
+    ease_factor: Mapped[float] = mapped_column(Float, default=2.5, nullable=False)
+    interval_days: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    next_review_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     last_reviewed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
 class Question(Base, TimestampMixin):
@@ -67,6 +71,7 @@ class QuizAttempt(Base, TimestampMixin):
     total_questions: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     correct_answers_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     feedback: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    weak_concepts: Mapped[Optional[List[str]]] = mapped_column(JSON, default=list)
 
 class TutorConversation(Base, TimestampMixin):
     __tablename__ = "tutor_conversations"

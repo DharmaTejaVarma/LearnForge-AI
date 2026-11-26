@@ -24,6 +24,7 @@ interface ChatMessage {
   sender: 'user' | 'tutor';
   text: string;
   citations?: Citation[];
+  resources?: { title: string; source_type: string; page_number?: number | null; description?: string | null }[];
   intent?: string;
   provider?: string;
   latency?: number;
@@ -160,6 +161,7 @@ export const TutorChat: React.FC = () => {
         sender: 'tutor',
         text: res.answer,
         citations: res.citations,
+        resources: res.resources,
         intent: res.intent,
         provider: res.provider_used,
         latency: res.latency_ms,
@@ -341,6 +343,37 @@ export const TutorChat: React.FC = () => {
                             <span className="text-slate-500">•</span>
                             <span className="text-white font-semibold">Page {c.page_number}</span>
                           </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Supplementary Resource Recommendations (distinguishing document vs general guidance) */}
+                  {msg.resources && msg.resources.length > 0 && (
+                    <div className="pt-2 space-y-1.5">
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                        Study Resources & References
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {msg.resources.slice(0, 2).map((r, rIdx) => (
+                          <div
+                            key={rIdx}
+                            className="p-2.5 rounded-lg bg-slate-950/60 border border-slate-800 text-[11px] space-y-0.5"
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-semibold text-slate-200 truncate">{r.title}</span>
+                              <span
+                                className={`px-1.5 py-0.5 rounded text-[9px] uppercase font-bold shrink-0 ${
+                                  r.source_type === 'uploaded_document'
+                                    ? 'bg-emerald-500/15 text-emerald-300'
+                                    : 'bg-purple-500/15 text-purple-300'
+                                }`}
+                              >
+                                {r.source_type === 'uploaded_document' ? 'Document' : 'Study Tip'}
+                              </span>
+                            </div>
+                            {r.description && <p className="text-slate-400 line-clamp-2">{r.description}</p>}
+                          </div>
                         ))}
                       </div>
                     </div>

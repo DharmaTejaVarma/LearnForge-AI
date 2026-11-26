@@ -11,6 +11,7 @@ class User(Base, TimestampMixin):
     full_name: Mapped[str] = mapped_column(String(255), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     is_superuser: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    role: Mapped[str] = mapped_column(String(32), default="student", nullable=False)
 
     def __repr__(self) -> str:
         return f"<User id={self.id} email={self.email}>"

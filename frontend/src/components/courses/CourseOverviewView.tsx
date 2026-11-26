@@ -17,11 +17,15 @@ import {
 interface CourseOverviewViewProps {
   course: Course;
   onStartOrResume: (lessonId: number) => void;
+  onOpenModuleAssessment?: (chapterId: number) => void;
+  onOpenFinalAssessment?: () => void;
 }
 
 export const CourseOverviewView: React.FC<CourseOverviewViewProps> = ({
   course,
   onStartOrResume,
+  onOpenModuleAssessment,
+  onOpenFinalAssessment,
 }) => {
   // Compute metrics
   let totalLessons = 0;
@@ -58,6 +62,11 @@ export const CourseOverviewView: React.FC<CourseOverviewViewProps> = ({
 
         <div className="relative z-10 max-w-3xl space-y-4">
           <div className="flex flex-wrap items-center gap-2.5">
+            {course.category && (
+              <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-purple-500/20 text-purple-200 border border-purple-500/30">
+                {course.category}
+              </span>
+            )}
             <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
               {course.difficulty_level || 'Modular Course'}
             </span>
@@ -202,17 +211,38 @@ export const CourseOverviewView: React.FC<CourseOverviewViewProps> = ({
             >
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-800">
                 <div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-400 bg-indigo-500/10 px-2.5 py-0.5 rounded-full border border-indigo-500/20">
-                    Module {cIdx + 1}
-                  </span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-400 bg-indigo-500/10 px-2.5 py-0.5 rounded-full border border-indigo-500/20">
+                      Module {cIdx + 1}
+                    </span>
+                    {chap.printed_page_start && (
+                      <span className="text-[10px] text-slate-400 font-mono">
+                        Book p. {chap.printed_page_start}
+                        {chap.printed_page_end && chap.printed_page_end !== chap.printed_page_start
+                          ? `–${chap.printed_page_end}`
+                          : ''}
+                      </span>
+                    )}
+                  </div>
                   <h3 className="text-base md:text-lg font-bold text-white mt-1.5">{chap.title}</h3>
                   {chap.description && (
                     <p className="text-xs text-slate-400 mt-1">{chap.description}</p>
                   )}
                 </div>
-                <span className="text-xs text-slate-500 self-start sm:self-center font-mono">
-                  {chap.topics.length} topics
-                </span>
+                <div className="flex items-center gap-2.5 self-start sm:self-center">
+                  <span className="text-xs text-slate-500 font-mono">
+                    {chap.topics.length} lessons
+                  </span>
+                  {onOpenModuleAssessment && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => onOpenModuleAssessment(chap.id)}
+                    >
+                      Module Quiz
+                    </Button>
+                  )}
+                </div>
               </div>
 
               {/* Topic / Lesson List */}
@@ -252,6 +282,25 @@ export const CourseOverviewView: React.FC<CourseOverviewViewProps> = ({
             </Card>
           ))}
         </div>
+
+        {/* Final Mastery Exam Card */}
+        {onOpenFinalAssessment && totalLessons > 0 && (
+          <Card className="p-6 bg-gradient-to-r from-emerald-950/30 via-slate-900 to-indigo-950/30 border border-emerald-500/25 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-emerald-400">
+                <Award className="h-4 w-4" />
+                <span>Comprehensive Capstone</span>
+              </div>
+              <h3 className="text-lg font-bold text-white">Final Course Assessment</h3>
+              <p className="text-xs text-slate-400">
+                Test mastery across all {course.chapters?.length || 0} modules and identify any weak concepts to revise.
+              </p>
+            </div>
+            <Button variant="primary" onClick={onOpenFinalAssessment} icon={<Award className="h-4 w-4" />}>
+              Take Final Exam
+            </Button>
+          </Card>
+        )}
       </div>
     </div>
   );

@@ -48,6 +48,7 @@ backend/chroma_data/*
 *.db-shm
 *.db-wal
 *.sqlite3
+backend/test_artifacts/
 
 # IDE / Editor
 .vscode/

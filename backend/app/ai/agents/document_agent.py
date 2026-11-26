@@ -88,14 +88,18 @@ class DocumentAgent:
         # 3. Structural Hierarchy Extraction (TOC, Headings, or Logical Sections)
         detected_outline = cls._extract_structural_outline(pages)
 
-        # 4. Generate Clean Title
+        # 4. Generate Clean Title & Author
         clean_title = cls._determine_clean_title(filename, pages, user_title_hint)
+        doc_author = ""
+        if pages and pages[0].get("doc_author"):
+            doc_author = str(pages[0].get("doc_author") or "").strip().rstrip(";")
 
         # 5. Build Pedagogical Profile
         pedagogical_profile = cls._build_pedagogical_profile(subject_domain, content_type)
 
         return {
             "clean_title": clean_title,
+            "author": doc_author,
             "subject_domain": subject_domain,
             "content_type": content_type,
             "detected_outline": detected_outline,
@@ -154,21 +158,46 @@ class DocumentAgent:
                 all_toc_entries.append(item)
 
         if len(all_toc_entries) >= 2:
+            from app.ai.rag.document_loader import DocumentLoader
+            filtered_toc = []
+            skipped_lvl: Optional[int] = None
+            for item in all_toc_entries:
+                lvl = int(item.get("level", 1))
+                raw_title = str(item.get("title", "")).strip()
+                if skipped_lvl is not None:
+                    if lvl > skipped_lvl:
+                        continue
+                    skipped_lvl = None
+                if DocumentLoader._is_frontback_matter(raw_title):
+                    skipped_lvl = lvl
+                    continue
+                filtered_toc.append(item)
+
+            # Prefer Chapters (level 2) as modules when Part headings wrap Chapters
+            has_parts = any(
+                int(x.get("level", 1)) == 1 and re.match(r"^(?:part|section)\b", str(x.get("title", "")), re.IGNORECASE)
+                for x in filtered_toc
+            )
+            has_chapters = any(int(x.get("level", 1)) == 2 for x in filtered_toc)
+            module_level = 2 if (has_parts and has_chapters) else 1
+
             chapters = []
             current_chapter = None
-            for item in all_toc_entries:
-                lvl = item.get("level", 1)
+            for item in filtered_toc:
+                lvl = int(item.get("level", 1))
                 title = EducationalSanitizer.clean_title(item.get("title", ""))
                 page_num = item.get("page", 1)
 
-                if lvl == 1 or current_chapter is None:
+                if lvl <= module_level:
+                    if lvl == 1 and module_level == 2 and re.match(r"^(?:part|section)\b", str(item.get("title", "")), re.IGNORECASE):
+                        continue
                     current_chapter = {
                         "title": title,
                         "start_page": page_num,
                         "topics": []
                     }
                     chapters.append(current_chapter)
-                else:
+                elif current_chapter is not None and lvl == module_level + 1:
                     current_chapter["topics"].append({
                         "title": title,
                         "page": page_num
@@ -250,7 +279,45 @@ class DocumentAgent:
         if user_title_hint and len(user_title_hint.strip()) > 3:
             return EducationalSanitizer.clean_title(user_title_hint)
 
-        clean_file_title = EducationalSanitizer.clean_title(filename)
+        from pathlib import Path
+        base_filename = Path(filename).name if filename else ""
+        clean_file_title = EducationalSanitizer.clean_title(base_filename)
+
+        # Check page 0 top lines for a full book title + subtitle when filename is truncated or metadata is brief
+        page0_title = ""
+        if pages and pages[0].get("text"):
+            p0_lines = [ln.strip() for ln in pages[0]["text"].splitlines() if ln.strip()][:4]
+            if len(p0_lines) >= 2 and len(p0_lines[0]) >= 4 and len(p0_lines[1]) >= 8:
+                # e.g., "FastAPI" + "Modern Python Web Development"
+                candidate = f"{p0_lines[0]}: {p0_lines[1]}" if p0_lines[0].lower() not in p0_lines[1].lower() else p0_lines[1]
+                clean_p0 = EducationalSanitizer.clean_title(candidate)
+                if (
+                    clean_p0
+                    and clean_p0 != "Course Study Guide"
+                    and not EducationalSanitizer.contains_metadata_leak(clean_p0)
+                    and len(clean_p0) <= 90
+                ):
+                    page0_title = clean_p0
+
+        # Prefer embedded PDF metadata title if filename looks abbreviated or truncated
+        if pages and pages[0].get("doc_title"):
+            meta_title = EducationalSanitizer.clean_title(pages[0]["doc_title"])
+            if (
+                meta_title
+                and meta_title != "Course Study Guide"
+                and not EducationalSanitizer.contains_metadata_leak(meta_title)
+                and (
+                    not clean_file_title
+                    or clean_file_title == "Course Study Guide"
+                    or len(meta_title) > len(clean_file_title) + 2
+                )
+            ):
+                if page0_title and meta_title.lower() in page0_title.lower() and len(page0_title) > len(meta_title) + 4:
+                    return page0_title
+                return meta_title
+
+        if page0_title and (not clean_file_title or clean_file_title == "Course Study Guide" or len(page0_title) > len(clean_file_title) + 2):
+            return page0_title
 
         # Prefer clean filename title if it contains descriptive words and isn't a fallback placeholder
         if clean_file_title and clean_file_title != "Course Study Guide":

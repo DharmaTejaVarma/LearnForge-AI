@@ -18,7 +18,10 @@ class VectorStoreManager:
             persist_dir = Path(settings.CHROMA_PERSIST_DIRECTORY)
             persist_dir.mkdir(parents=True, exist_ok=True)
             logger.info(f"Initializing local persistent ChromaDB at {persist_dir.resolve()}")
-            cls._client = chromadb.PersistentClient(path=str(persist_dir.resolve()))
+            cls._client = chromadb.PersistentClient(
+                path=str(persist_dir.resolve()),
+                settings=ChromaSettings(anonymized_telemetry=False),
+            )
         return cls._client
 
     @classmethod

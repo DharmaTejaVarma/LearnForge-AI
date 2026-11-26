@@ -25,8 +25,8 @@ class CourseValidator:
         if not isinstance(chapters, list) or len(chapters) == 0:
             return False, "Course must contain at least one module or chapter."
 
-        if len(chapters) > 12:
-            return False, "Course contains an excessive number of chapters (>12)."
+        if len(chapters) > 24:
+            return False, "Course contains an excessive number of chapters (>24)."
 
         seen_topics = set()
         for idx, ch in enumerate(chapters):
