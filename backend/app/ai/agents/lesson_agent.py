@@ -430,18 +430,22 @@ class LessonAgent:
         if last_line and not last_line.startswith("#") and not last_line.endswith((".", "!", "?", "`", ":", ")", "]")):
             cleaned = cleaned.rstrip(",;:- ") + "."
 
-        # 3. Prepend Learning Objectives deterministically when Hybrid Fast Local Mode omits them
+        # 3. Prepend measurable, non-repetitive Learning Objectives when omitted
         if "## Learning Objectives" not in cleaned:
-            obj_items = [
-                f"- Explain the core mechanisms and trade-offs of **{s}** in {chapter_title}."
-                for s in (subtopics or [])[:3]
-            ]
+            action_verbs = ("Differentiate", "Implement", "Trace", "Configure", "Validate", "Debug")
+            obj_items: List[str] = []
+            for idx, s in enumerate((subtopics or [])[:3]):
+                verb = action_verbs[idx % len(action_verbs)]
+                obj_items.append(
+                    f"- {verb} how **{s}** operates within **{topic_title}** ({pages_range})."
+                )
             if len(obj_items) < 3:
-                obj_items.extend([
-                    f"- Define and apply the key principles of **{topic_title}** ({pages_range}).",
-                    f"- Trace inputs, processing, and outputs in a complete **{topic_title}** workflow.",
-                    f"- Identify and fix common implementation mistakes related to **{topic_title}**.",
-                ][: 3 - len(obj_items)])
+                defaults = [
+                    f"- Differentiate the core responsibilities and boundaries of **{topic_title}** ({pages_range}).",
+                    f"- Trace a complete input-to-output workflow using **{topic_title}** with concrete examples.",
+                    f"- Diagnose and prevent common implementation pitfalls when applying **{topic_title}**.",
+                ]
+                obj_items.extend(defaults[: 3 - len(obj_items)])
             header = f"# {topic_title}\n\n## Learning Objectives\n\n" + "\n".join(obj_items) + "\n\n"
             cleaned = header + cleaned
 

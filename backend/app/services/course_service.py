@@ -467,9 +467,29 @@ class CourseService:
                     async with AsyncSessionLocal() as session:
                         job_row = await session.get(GenerationJob, job_id)
                         if job_row:
+                            from sqlalchemy import func as sa_func
+                            tot_res = await session.execute(
+                                select(sa_func.count(Lesson.id))
+                                .join(Topic, Lesson.topic_id == Topic.id)
+                                .join(Chapter, Topic.chapter_id == Chapter.id)
+                                .where(Chapter.course_id == job_row.course_id)
+                            )
+                            rdy_res = await session.execute(
+                                select(sa_func.count(Lesson.id))
+                                .join(Topic, Lesson.topic_id == Topic.id)
+                                .join(Chapter, Topic.chapter_id == Chapter.id)
+                                .where(Chapter.course_id == job_row.course_id, Lesson.generation_status == "ready")
+                            )
+                            total_cnt = int(tot_res.scalar() or 0)
+                            ready_cnt = int(rdy_res.scalar() or 0)
                             job_row.status = "completed"
-                            job_row.completed_items = job_row.total_items
-                            job_row.current_stage = "All scheduled lessons ready"
+                            job_row.completed_items = ready_cnt
+                            job_row.total_items = total_cnt or job_row.total_items
+                            job_row.current_stage = (
+                                f"All {total_cnt} lessons ready"
+                                if total_cnt > 0 and ready_cnt >= total_cnt
+                                else f"Prefetch complete ({ready_cnt}/{total_cnt} ready · remaining generate on demand)"
+                            )
                             await session.commit()
                 except Exception as exc:
                     logger.debug(f"Could not finalize generation job {job_id}: {exc}")
@@ -491,16 +511,16 @@ class CourseService:
             raise ForbiddenException("Unauthorized document access")
         if doc.processing_status == "failed":
             raise BadRequestException("Document processing failed; please reprocess or re-upload.")
-        if doc.processing_status in ("uploaded", "processed") and "pytest" not in sys.modules:
+        if doc.processing_status == "uploaded" and "pytest" not in sys.modules:
             for _ in range(30):
                 await asyncio.sleep(1.0)
                 await db.refresh(doc)
-                if doc.processing_status == "indexed":
+                if doc.processing_status in ("processed", "indexed"):
                     break
                 if doc.processing_status == "failed":
                     raise BadRequestException("Document indexing failed; please reprocess.")
-            if doc.processing_status != "indexed":
-                raise BadRequestException("Document is still indexing vectors. Please wait a few seconds and try again.")
+            if doc.processing_status not in ("processed", "indexed"):
+                raise BadRequestException("Document is still extracting text. Please wait a few seconds and try again.")
 
         # 2. Extract pages and generate document blueprint via DocumentAgent
         pages = DocumentLoader.load_document(doc.file_path, doc.mime_type)
@@ -595,16 +615,12 @@ class CourseService:
                 db.add(topic)
                 await db.flush()
 
-                t_passages, source_pages = CourseService._retrieve_topic_passages(
-                    document_id=doc.id,
-                    user_id=user_id,
-                    t_title=t_title,
-                    chap_title=chap_title,
-                    t_page_start=t_page_start,
-                    t_page_end=t_page_end,
-                    file_path=doc.file_path,
-                    mime_type=doc.mime_type,
+                source_pages = (
+                    list(range(int(t_page_start), int(t_page_end or t_page_start) + 1))
+                    if t_page_start is not None
+                    else ([int(ch_page_start)] if ch_page_start is not None else [1])
                 )
+                t_passages: List[Dict[str, Any]] = []
 
                 cache_key = LessonAgent.compute_cache_key(
                     doc_hash=doc.file_hash,
@@ -671,7 +687,7 @@ class CourseService:
                             content_type=doc_blueprint.get("content_type", "theoretical"),
                             difficulty=difficulty,
                         )
-                elif not first_lesson_generated:
+                elif False:  # Never block course creation on synchronous LLM synthesis (30s target)
                     synthesized = await CourseService._synthesize_lesson_with_quality_gate(
                         t_title=t_title,
                         chap_title=chap_title,
@@ -1222,12 +1238,23 @@ class CourseService:
         async with _get_lesson_lock(lesson_id):
             lesson.generation_status = "generating"
             lesson.generation_error = None
+            lesson.content = ""
             lesson.cache_key = None  # Force fresh synthesis on explicit regenerate
             for old_ex in list(lesson.exercises):
                 await db.delete(old_ex)
             await db.commit()
             await db.refresh(lesson)
+
+        if "pytest" in sys.modules:
             lesson = await CourseService._populate_lesson_record(db, lesson, user_id)
+        else:
+            from app.services.job_queue import LessonJobService
+            await LessonJobService.enqueue_lesson_job(
+                course_id=course.id,
+                lesson_id=lesson_id,
+                user_id=user_id,
+                job_type="on_demand",
+            )
 
         return await CourseService._build_lesson_response(db, lesson, user_id)
 

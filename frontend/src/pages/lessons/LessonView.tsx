@@ -24,6 +24,24 @@ import {
   Loader2,
 } from 'lucide-react';
 
+function formatApiError(err: any, fallback: string): string {
+  const status = err?.response?.status;
+  const serverMsg = err?.response?.data?.error?.message || err?.response?.data?.detail;
+  if (serverMsg) return String(serverMsg);
+  if (err?.code === 'ECONNABORTED' || String(err?.message || '').toLowerCase().includes('timeout')) {
+    return 'Request timed out while waiting for the server. The lesson job may still be running — wait a moment or click Regenerate Lesson.';
+  }
+  if (!err?.response) {
+    return 'Unable to reach the LearnForge AI backend (http://127.0.0.1:8000). Verify the backend server is running and retry.';
+  }
+  if (status === 429) return 'Too many requests. Please wait a few seconds before retrying.';
+  if (status === 502 || status === 503 || status === 504) {
+    return `AI service temporarily unavailable (HTTP ${status}). Verify Ollama is running and click Regenerate Lesson.`;
+  }
+  if (status >= 500) return `Server error (HTTP ${status}) during lesson synthesis. Click Regenerate Lesson to retry.`;
+  return fallback;
+}
+
 export const LessonView: React.FC = () => {
   const { courseId } = useParams<{ courseId: string }>();
 
@@ -133,10 +151,10 @@ export const LessonView: React.FC = () => {
         setActiveLesson({
           ...cached.lesson,
           generation_status: 'failed',
-          generation_error:
-            err?.response?.data?.error?.message ||
-            err?.message ||
-            'Lesson synthesis timed out. Click Regenerate Lesson to retry.',
+          generation_error: formatApiError(
+            err,
+            'Lesson synthesis failed. Click Regenerate Lesson to retry.',
+          ),
         });
       }
     } finally {
@@ -336,8 +354,20 @@ export const LessonView: React.FC = () => {
           })),
         };
       });
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to regenerate lesson:', err);
+      setActiveLesson((prev) =>
+        prev
+          ? {
+              ...prev,
+              generation_status: 'failed',
+              generation_error: formatApiError(
+                err,
+                'Failed to start lesson regeneration. Please retry.',
+              ),
+            }
+          : prev,
+      );
     } finally {
       setIsRegenerating(false);
     }

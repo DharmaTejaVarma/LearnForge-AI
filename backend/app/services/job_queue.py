@@ -21,6 +21,21 @@ def _utcnow_iso() -> str:
     return datetime.datetime.utcnow().isoformat()
 
 
+def _format_actionable_error(exc: Exception) -> str:
+    """Translate raw transport/model exceptions into clear, actionable student/operator messages."""
+    msg = str(exc) or type(exc).__name__
+    low = msg.lower()
+    if "timeout" in low or "timed out" in low or "readtimeout" in low:
+        return "Local AI model timed out while generating this lesson. Click Regenerate Lesson to retry."
+    if "connect" in low or "11434" in low or "refused" in low:
+        return "Local AI engine (Ollama) is unreachable. Verify Ollama is running, then click Regenerate Lesson."
+    if "not found" in low and "model" in low:
+        return "Configured Ollama model is not installed. Run 'ollama pull qwen2.5:3b' and retry."
+    if "database is locked" in low:
+        return "Database was briefly busy saving another lesson. Click Regenerate Lesson to retry."
+    return msg[:450]
+
+
 class LessonJobService:
     """Manages SQLite-persisted lesson generation jobs with duplicate prevention & cancellation."""
 
@@ -208,7 +223,16 @@ class LessonJobService:
                                     updated = await CourseService._populate_lesson_record(session, lesson_obj, user_id)
                                     total_ms = round((time.perf_counter() - t0) * 1000, 1)
                                     metrics = dict((updated.structured_sections or {}).get("performance_metrics") or {})
+                                    metrics["job_id"] = job_id
+                                    metrics["course_id"] = updated.topic.chapter.course_id if updated.topic and updated.topic.chapter else None
+                                    metrics["lesson_id"] = lesson_id
+                                    metrics["user_id"] = user_id
                                     metrics["total_ms"] = total_ms
+                                    logger.info(
+                                        f"LessonJob completed: job_id={job_id} lesson_id={lesson_id} "
+                                        f"user_id={user_id} status={updated.generation_status} total_ms={total_ms} "
+                                        f"stages={metrics}"
+                                    )
                                     if updated.generation_status == "ready":
                                         await cls._set_job_stage(job_id, "COMPLETED", "Lesson ready", metrics=metrics, completed=True)
                                     else:
@@ -230,14 +254,15 @@ class LessonJobService:
                                     await session.commit()
                             return
                         except Exception as exc:
-                            logger.warning(f"Job {job_id} attempt {attempt + 1} failed for lesson {lesson_id}: {exc}")
+                            actionable = _format_actionable_error(exc)
+                            logger.warning(f"Job {job_id} attempt {attempt + 1} failed for lesson {lesson_id}: {actionable}")
                             if attempt < max_retries:
                                 backoff = 2 ** (attempt + 1)
                                 await cls._set_job_stage(
                                     job_id,
                                     "QUEUED",
                                     f"Retrying in {backoff}s (attempt {attempt + 2}/{max_retries + 1})",
-                                    error_message=str(exc),
+                                    error_message=actionable,
                                     retry_count=attempt + 1,
                                 )
                                 await asyncio.sleep(backoff)
@@ -246,7 +271,7 @@ class LessonJobService:
                                     job_id,
                                     "FAILED",
                                     "Generation failed",
-                                    error_message=str(exc),
+                                    error_message=actionable,
                                     retry_count=attempt,
                                     completed=True,
                                 )
@@ -254,7 +279,7 @@ class LessonJobService:
                                     row = await session.get(Lesson, lesson_id)
                                     if row and row.generation_status != "ready":
                                         row.generation_status = "failed"
-                                        row.generation_error = str(exc)[:255]
+                                        row.generation_error = actionable[:255]
                                         await session.commit()
             finally:
                 if is_on_demand and cls._on_demand_waiting > 0:

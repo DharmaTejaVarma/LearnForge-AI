@@ -45,27 +45,30 @@ export const CourseCurriculumSidebar: React.FC<CourseCurriculumSidebarProps> = (
   onCloseMobile,
   hideOnDesktop = false,
 }) => {
-  // Compute progress stats
+  // Compute progress & content readiness stats
   let totalLessons = 0;
   let completedLessons = 0;
   let readyLessons = 0;
+  let queuedLessons = 0;
   let generatingLessons = 0;
+  let failedLessons = 0;
 
   course.chapters?.forEach((chap) => {
     chap.topics.forEach((topic) => {
       if (topic.lesson) {
         totalLessons += 1;
         if (topic.lesson.is_completed) completedLessons += 1;
-        if (topic.lesson.generation_status === 'ready') readyLessons += 1;
-        if (topic.lesson.generation_status === 'queued' || topic.lesson.generation_status === 'generating') {
-          generatingLessons += 1;
-        }
+        const st = topic.lesson.generation_status;
+        if (st === 'ready') readyLessons += 1;
+        else if (st === 'generating') generatingLessons += 1;
+        else if (st === 'failed') failedLessons += 1;
+        else queuedLessons += 1;
       }
     });
   });
 
   const progressPercent = totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
-  const isGenerating = generatingLessons > 0;
+  const isGenerating = queuedLessons + generatingLessons > 0;
 
   const sidebarContent = (
     <div className="flex flex-col h-full bg-slate-900 border-r border-slate-800 text-slate-100 select-none">
@@ -126,11 +129,16 @@ export const CourseCurriculumSidebar: React.FC<CourseCurriculumSidebarProps> = (
               {readyLessons}/{totalLessons} ready
             </span>
           </div>
+          <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-[10px] text-slate-400 font-mono">
+            <span>Queued: {queuedLessons}</span>
+            <span>Generating: {generatingLessons}</span>
+            {failedLessons > 0 && <span className="text-rose-400">Failed: {failedLessons}</span>}
+          </div>
           {isGenerating && (
             <div className="flex items-center gap-1.5 pt-0.5">
               <Loader2 className="h-3 w-3 text-indigo-400 animate-spin shrink-0" />
               <span className="text-[10px] text-indigo-300">
-                On-demand & prefetch active ({generatingLessons} awaiting)
+                On-demand ready ({queuedLessons + generatingLessons} remaining)
               </span>
             </div>
           )}
