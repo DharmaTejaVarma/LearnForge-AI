@@ -23,8 +23,40 @@ from app.ai.rag.vector_store import VectorStoreManager
 MAX_FILE_SIZE = 25 * 1024 * 1024  # 25 MB
 ALLOWED_EXTENSIONS = {".pdf", ".docx", ".txt", ".pptx", ".md", ".markdown"}
 _doc_bg_tasks: Set[asyncio.Task] = set()
+_indexing_sem: Optional[asyncio.Semaphore] = None
+_EXTRACTED_PAGES_CACHE: dict[str, list[dict]] = {}
+_DOC_PROGRESS: dict[int, dict] = {}
+
+
+def _get_indexing_sem() -> asyncio.Semaphore:
+    global _indexing_sem
+    if _indexing_sem is None:
+        _indexing_sem = asyncio.Semaphore(1)
+    return _indexing_sem
 
 class DocumentService:
+    @staticmethod
+    def get_cached_pages(file_hash: Optional[str]) -> Optional[List[dict]]:
+        if not file_hash:
+            return None
+        return _EXTRACTED_PAGES_CACHE.get(file_hash)
+
+    @staticmethod
+    def get_document_progress(doc: UploadedDocument) -> dict:
+        prog = _DOC_PROGRESS.get(doc.id)
+        if prog:
+            return dict(prog)
+        st = doc.processing_status
+        return {
+            "document_id": doc.id,
+            "filename": doc.original_filename,
+            "extraction_status": "complete" if st in ("processed", "indexed") else ("failed" if st == "failed" else "waiting"),
+            "embedding_status": "complete" if st == "indexed" else ("failed" if st == "failed" else "waiting"),
+            "indexing_status": "complete" if st == "indexed" else ("failed" if st == "failed" else "waiting"),
+            "chunks_total": 0,
+            "chunks_embedded": 0,
+        }
+
     @staticmethod
     def _validate_file_signature(file_ext: str, content: bytes) -> None:
         """Validate file magic bytes / binary safety against claimed extension."""
@@ -41,8 +73,21 @@ class DocumentService:
     @staticmethod
     async def _extract_and_index_document(db: AsyncSession, doc: UploadedDocument) -> UploadedDocument:
         """Extract text, detect structural sections, chunk, embed, and index vectors into ChromaDB."""
+        _DOC_PROGRESS[doc.id] = {
+            "document_id": doc.id,
+            "filename": doc.original_filename,
+            "extraction_status": "running",
+            "embedding_status": "waiting",
+            "indexing_status": "waiting",
+            "chunks_total": 0,
+            "chunks_embedded": 0,
+        }
         extracted_pages = await asyncio.to_thread(DocumentLoader.load_document, doc.file_path, doc.mime_type)
         cleaned_pages = await asyncio.to_thread(TextCleaner.clean_document_pages, extracted_pages)
+        if doc.file_hash:
+            if len(_EXTRACTED_PAGES_CACHE) >= 4:
+                _EXTRACTED_PAGES_CACHE.pop(next(iter(_EXTRACTED_PAGES_CACHE)))
+            _EXTRACTED_PAGES_CACHE[doc.file_hash] = cleaned_pages
         total_chars = sum(p["char_count"] for p in cleaned_pages)
         page_count = len(cleaned_pages)
 
@@ -63,31 +108,49 @@ class DocumentService:
         await db.refresh(doc)
 
         async def _run_vector_indexing(doc_id: int, uid: int, fname: str, pages_data: List[dict]) -> None:
-            chunker = ChunkingService(chunk_size=settings.CHUNK_SIZE, chunk_overlap=settings.CHUNK_OVERLAP)
-            chunks = await asyncio.to_thread(
-                chunker.chunk_pages,
-                pages=pages_data,
-                document_id=doc_id,
-                user_id=uid,
-                filename=fname,
-            )
-            if not chunks:
-                return
-            texts = [c["text"] for c in chunks]
-            embeddings = await asyncio.to_thread(EmbeddingService.embed_texts, texts)
-            await asyncio.to_thread(
-                VectorStoreManager.index_document_chunks,
-                user_id=uid,
-                document_id=doc_id,
-                chunks=chunks,
-                embeddings=embeddings,
-            )
-            async with AsyncSessionLocal() as bg_sess:
-                row = await bg_sess.get(UploadedDocument, doc_id)
-                if row:
-                    row.processing_status = "indexed"
-                    await bg_sess.commit()
-            logger.info(f"Indexed document id={doc_id}: {page_count} pages, {len(chunks)} chunks")
+            async with _get_indexing_sem():
+                _DOC_PROGRESS[doc_id] = {
+                    "document_id": doc_id,
+                    "filename": fname,
+                    "extraction_status": "complete",
+                    "embedding_status": "running",
+                    "indexing_status": "waiting",
+                    "chunks_total": 0,
+                    "chunks_embedded": 0,
+                }
+                chunker = ChunkingService(chunk_size=settings.CHUNK_SIZE, chunk_overlap=settings.CHUNK_OVERLAP)
+                chunks = await asyncio.to_thread(
+                    chunker.chunk_pages,
+                    pages=pages_data,
+                    document_id=doc_id,
+                    user_id=uid,
+                    filename=fname,
+                )
+                if not chunks:
+                    _DOC_PROGRESS[doc_id].update({"embedding_status": "complete", "indexing_status": "complete"})
+                    return
+                _DOC_PROGRESS[doc_id]["chunks_total"] = len(chunks)
+                texts = [c["text"] for c in chunks]
+                embeddings = await asyncio.to_thread(EmbeddingService.embed_texts, texts)
+                _DOC_PROGRESS[doc_id].update({
+                    "chunks_embedded": len(embeddings),
+                    "embedding_status": "complete",
+                    "indexing_status": "running",
+                })
+                await asyncio.to_thread(
+                    VectorStoreManager.index_document_chunks,
+                    user_id=uid,
+                    document_id=doc_id,
+                    chunks=chunks,
+                    embeddings=embeddings,
+                )
+                async with AsyncSessionLocal() as bg_sess:
+                    row = await bg_sess.get(UploadedDocument, doc_id)
+                    if row:
+                        row.processing_status = "indexed"
+                        await bg_sess.commit()
+                _DOC_PROGRESS[doc_id]["indexing_status"] = "complete"
+                logger.info(f"Indexed document id={doc_id}: {page_count} pages, {len(chunks)} chunks")
 
         if "pytest" in sys.modules:
             await _run_vector_indexing(doc.id, doc.user_id, doc.original_filename, cleaned_pages)

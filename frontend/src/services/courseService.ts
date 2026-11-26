@@ -204,12 +204,71 @@ export interface LessonJobStatus {
   job_id?: number;
   lesson_id: number;
   course_id?: number;
-  status: 'PENDING' | 'QUEUED' | 'RETRIEVING_SOURCE' | 'GENERATING' | 'VALIDATING' | 'SAVING' | 'COMPLETED' | 'FAILED' | 'CANCELLED' | string;
+  status:
+    | 'PENDING'
+    | 'QUEUED'
+    | 'WAITING_FOR_WORKER'
+    | 'WAITING_FOR_MODEL'
+    | 'CHECKING_CACHE'
+    | 'CHECKING_DOCUMENT'
+    | 'RETRIEVING_SOURCE'
+    | 'PREPARING_CONTEXT'
+    | 'GENERATING'
+    | 'VALIDATING'
+    | 'REPAIRING_CODE'
+    | 'PREPARING_EXERCISES'
+    | 'SAVING'
+    | 'COMPLETED'
+    | 'FAILED'
+    | 'CANCELLED'
+    | string;
   current_stage: string;
+  stage_started_at?: string | null;
   elapsed_seconds: number;
-  retry_count: number;
+  stage_duration_ms?: number | null;
+  completed_stages?: number;
+  total_stages?: number;
+  progress_percentage?: number | null;
+  generated_tokens?: number | null;
+  target_tokens?: number | null;
+  error_code?: string | null;
   error_message?: string | null;
+  retry_count: number;
+  heartbeat_at?: string | null;
+  updated_at?: string;
   metrics?: Record<string, any>;
+}
+
+export interface DocumentProgressItem {
+  document_id: number;
+  filename: string;
+  extraction_status: string;
+  embedding_status: string;
+  indexing_status: string;
+  chunks_total: number;
+  chunks_embedded: number;
+}
+
+export interface CourseGenerationProgress {
+  course_id: number;
+  total_lessons: number;
+  ready_lessons: number;
+  queued_lessons: number;
+  generating_lessons: number;
+  failed_lessons: number;
+  cancelled_lessons: number;
+  curriculum_status: string;
+  curriculum_percentage: number;
+  content_readiness_percentage: number;
+  course_generation_status: string;
+  active_job_id?: number | null;
+  active_lesson_id?: number | null;
+  active_lesson_title?: string | null;
+  active_stage?: string | null;
+  active_elapsed_seconds: number;
+  prefetch_paused: boolean;
+  documents_progress?: DocumentProgressItem[];
+  updated_at: string;
 }
 
 export interface Course {
@@ -303,6 +362,26 @@ export const courseService = {
 
   async getGenerationStatus(courseId: number): Promise<GenerationJob | null> {
     const res = await api.get<GenerationJob | null>(`/courses/${courseId}/generation-status`);
+    return res.data;
+  },
+
+  async getCourseGenerationProgress(courseId: number): Promise<CourseGenerationProgress> {
+    const res = await api.get<CourseGenerationProgress>(`/courses/${courseId}/generation-progress`);
+    return res.data;
+  },
+
+  async pausePrefetch(courseId: number): Promise<{ course_id: number; prefetch_paused: boolean }> {
+    const res = await api.post<{ course_id: number; prefetch_paused: boolean }>(`/courses/${courseId}/prefetch/pause`);
+    return res.data;
+  },
+
+  async resumePrefetch(courseId: number): Promise<{ course_id: number; prefetch_paused: boolean }> {
+    const res = await api.post<{ course_id: number; prefetch_paused: boolean }>(`/courses/${courseId}/prefetch/resume`);
+    return res.data;
+  },
+
+  async retryFailedLessons(courseId: number): Promise<{ course_id: number; requeued_lessons: number }> {
+    const res = await api.post<{ course_id: number; requeued_lessons: number }>(`/courses/${courseId}/retry-failed`);
     return res.data;
   },
 

@@ -522,14 +522,17 @@ class CourseService:
             if doc.processing_status not in ("processed", "indexed"):
                 raise BadRequestException("Document is still extracting text. Please wait a few seconds and try again.")
 
-        # 2. Extract pages and generate document blueprint via DocumentAgent
-        pages = DocumentLoader.load_document(doc.file_path, doc.mime_type)
-        cleaned_pages = TextCleaner.clean_document_pages(pages)
+        # 2. Reuse cached extracted pages & structure when available (avoids re-parsing 491p/280p PDFs)
+        from app.services.document_service import DocumentService
+        cleaned_pages = DocumentService.get_cached_pages(doc.file_hash)
+        if cleaned_pages is None:
+            pages = DocumentLoader.load_document(doc.file_path, doc.mime_type)
+            cleaned_pages = TextCleaner.clean_document_pages(pages)
         doc_blueprint = DocumentAgent.analyze_document(cleaned_pages, doc.original_filename)
 
-        # 2b. Extract document structure (TOC/headings) and persist fresh structure
-        extracted_sections = DocumentLoader.extract_structure(doc.file_path, doc.mime_type)
-        if extracted_sections:
+        # 2b. Reuse persisted document structure if already extracted
+        extracted_sections = doc.structure if isinstance(doc.structure, list) and doc.structure else DocumentLoader.extract_structure(doc.file_path, doc.mime_type)
+        if extracted_sections and not doc.structure:
             doc.structure = extracted_sections
 
         # 3. Synthesize structured syllabus via ContentAgent
@@ -860,8 +863,16 @@ class CourseService:
         db: AsyncSession,
         lesson: Lesson,
         user_id: int,
+        stage_cb: Optional[Any] = None,
     ) -> Lesson:
         """Synthesize content and exercises for a Lesson ORM object and persist it."""
+        import time as _time
+        stage_timings: Dict[str, float] = {}
+
+        async def _emit(st_code: str, st_label: str) -> None:
+            if stage_cb is not None:
+                await stage_cb(st_code, st_label)
+
         course = lesson.topic.chapter.course
         doc = course.document
         t_title = lesson.title
@@ -873,7 +884,35 @@ class CourseService:
         chap_order = lesson.topic.chapter.order_index
         subtopics = (lesson.structured_sections or {}).get("subtopics") or []
 
-        # Ensure document indexing is complete before retrieving from ChromaDB
+        # 1. Check cache first if cache_key exists
+        await _emit("CHECKING_CACHE", "Checking lesson cache")
+        t0 = _time.perf_counter()
+        if lesson.cache_key:
+            cached = await CourseService._find_cached_lesson(db, lesson.cache_key)
+            if cached and cached.id != lesson.id:
+                lesson.content = cached.content
+                lesson.summary = cached.summary or lesson.summary
+                lesson.key_takeaways = cached.key_takeaways or lesson.key_takeaways
+                lesson.learning_objectives = cached.learning_objectives or []
+                lesson.prerequisites = cached.prerequisites or []
+                lesson.estimated_minutes = cached.estimated_minutes or 10
+                lesson.structured_sections = cached.structured_sections or {}
+                lesson.printed_pages = cached.printed_pages or lesson.printed_pages
+                lesson.source_pages = cached.source_pages or lesson.source_pages
+                lesson.generation_status = "ready"
+                lesson.quality_score = cached.quality_score or 1.0
+                lesson.generation_error = None
+                await CourseService._ensure_lesson_exercises(
+                    db, lesson, chap_title=chap_title, source_text="", difficulty=course.difficulty_level
+                )
+                await db.commit()
+                await db.refresh(lesson)
+                return lesson
+        stage_timings["cache_check_ms"] = round((_time.perf_counter() - t0) * 1000, 1)
+
+        # 2. Ensure document indexing is complete before retrieving from ChromaDB
+        await _emit("CHECKING_DOCUMENT", "Checking document readiness")
+        t_doc = _time.perf_counter()
         if doc is not None:
             if doc.processing_status == "failed":
                 raise BadRequestException("Source document processing failed; please reprocess or re-upload.")
@@ -887,50 +926,37 @@ class CourseService:
                         raise BadRequestException("Source document indexing failed.")
                 if doc.processing_status != "indexed":
                     raise BadRequestException("Document is still indexing vectors. Please wait a few seconds and retry.")
+        stage_timings["doc_readiness_ms"] = round((_time.perf_counter() - t_doc) * 1000, 1)
 
-        t_passages, source_pages = CourseService._retrieve_topic_passages(
-            document_id=doc.id if doc else course.document_id,
-            user_id=user_id,
-            t_title=t_title,
-            chap_title=chap_title,
-            t_page_start=page_start,
-            t_page_end=page_end,
-            file_path=doc.file_path if doc else None,
-            mime_type=doc.mime_type if doc else None,
+        # 3. Non-blocking source retrieval with 30s timeout so jobs never hang in RETRIEVING_SOURCE
+        await _emit("RETRIEVING_SOURCE", "Retrieving relevant source passages")
+        t_ret = _time.perf_counter()
+        t_passages, source_pages = await asyncio.wait_for(
+            asyncio.to_thread(
+                CourseService._retrieve_topic_passages,
+                document_id=doc.id if doc else course.document_id,
+                user_id=user_id,
+                t_title=t_title,
+                chap_title=chap_title,
+                t_page_start=page_start,
+                t_page_end=page_end,
+                file_path=doc.file_path if doc else None,
+                mime_type=doc.mime_type if doc else None,
+            ),
+            timeout=30.0,
         )
         if not t_passages and lesson.source_pages:
             source_pages = lesson.source_pages
+        stage_timings["retrieval_ms"] = round((_time.perf_counter() - t_ret) * 1000, 1)
 
-        # Check cache unless caller explicitly cleared cache_key via regenerate
-        if lesson.cache_key:
-            cached = await CourseService._find_cached_lesson(db, lesson.cache_key)
-            if cached and cached.id != lesson.id:
-                lesson.content = cached.content
-                lesson.summary = cached.summary or lesson.summary
-                lesson.key_takeaways = cached.key_takeaways or lesson.key_takeaways
-                lesson.learning_objectives = cached.learning_objectives or []
-                lesson.prerequisites = cached.prerequisites or []
-                lesson.estimated_minutes = cached.estimated_minutes or 10
-                lesson.structured_sections = cached.structured_sections or {}
-                lesson.printed_pages = cached.printed_pages or lesson.printed_pages
-                lesson.source_pages = cached.source_pages or source_pages
-                lesson.generation_status = "ready"
-                lesson.quality_score = cached.quality_score or 1.0
-                lesson.generation_error = None
-                source_text = "\n\n".join(p.get("text", "") for p in t_passages)
-                await CourseService._ensure_lesson_exercises(
-                    db, lesson, chap_title=chap_title, source_text=source_text, difficulty=course.difficulty_level
-                )
-                await db.commit()
-                await db.refresh(lesson)
-                return lesson
-
+        await _emit("PREPARING_CONTEXT", "Preparing grounded context")
         domain_guess = (course.category or "general").lower().replace(" ", "_")
         doc_blueprint = {
             "clean_title": course_title,
             "subject_domain": domain_guess,
             "content_type": "programming" if domain_guess == "computer_science" else "theoretical",
         }
+        await _emit("GENERATING", "Generating lesson content")
         synthesized = await CourseService._synthesize_lesson_with_quality_gate(
             t_title=t_title,
             chap_title=chap_title,
@@ -946,6 +972,12 @@ class CourseService:
             doc_hash=course.document_hash or (doc.file_hash if doc else None),
         )
 
+        await _emit("VALIDATING", "Validating technical content & code")
+        perf_meta = dict((synthesized.get("structured_sections") or {}).get("performance_metrics") or {})
+        perf_meta.update(stage_timings)
+        if isinstance(synthesized.get("structured_sections"), dict):
+            synthesized["structured_sections"]["performance_metrics"] = perf_meta
+
         lesson.content = synthesized["content"]
         lesson.summary = synthesized["summary"] or lesson.summary
         lesson.key_takeaways = synthesized["key_takeaways"] or lesson.key_takeaways
@@ -960,6 +992,8 @@ class CourseService:
         lesson.generation_error = synthesized["generation_error"]
 
         if synthesized["generation_status"] == "ready":
+            await _emit("PREPARING_EXERCISES", "Preparing interactive exercises")
+            t_ex = _time.perf_counter()
             source_text = "\n\n".join(p.get("text", "") for p in t_passages)
             await CourseService._ensure_lesson_exercises(
                 db,
@@ -970,9 +1004,13 @@ class CourseService:
                 content_type=doc_blueprint["content_type"],
                 difficulty=course.difficulty_level,
             )
+            perf_meta["exercise_gen_ms"] = round((_time.perf_counter() - t_ex) * 1000, 1)
 
+        await _emit("SAVING", "Saving validated lesson")
+        t_db = _time.perf_counter()
         await db.commit()
         await db.refresh(lesson)
+        perf_meta["db_persist_ms"] = round((_time.perf_counter() - t_db) * 1000, 1)
         return lesson
 
     @staticmethod
@@ -1087,12 +1125,14 @@ class CourseService:
 
         # Prefetch next lesson ONLY after current lesson is ready so we don't block the active lesson
         if "pytest" not in sys.modules and lesson.generation_status == "ready" and lesson.topic and lesson.topic.chapter:
-            CourseService._schedule_next_lessons_prefetch(
-                course_id=lesson.topic.chapter.course_id,
-                current_lesson_id=lesson.id,
-                user_id=user_id,
-                limit=1 if model_router.is_local_only() else 2,
-            )
+            from app.services.job_queue import LessonJobService
+            if not LessonJobService.is_prefetch_paused(lesson.topic.chapter.course_id):
+                CourseService._schedule_next_lessons_prefetch(
+                    course_id=lesson.topic.chapter.course_id,
+                    current_lesson_id=lesson.id,
+                    user_id=user_id,
+                    limit=1 if model_router.is_local_only() else 2,
+                )
 
         return await CourseService._build_lesson_response(db, lesson, user_id)
 

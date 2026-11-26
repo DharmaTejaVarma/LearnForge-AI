@@ -17,6 +17,7 @@ from app.schemas.course import (
 )
 from app.services.code_sandbox import execute_python_sandbox, check_sandbox_rate_limit
 from app.services.course_service import CourseService
+from app.services.job_queue import LessonJobService
 
 router = APIRouter()
 
@@ -59,6 +60,60 @@ async def get_course_generation_status(
 ):
     """Return latest background lesson generation job status for real-time progress tracking."""
     return await CourseService.get_generation_job(db, current_user.id, course_id)
+
+
+@router.get("/{course_id}/generation-progress", status_code=status.HTTP_200_OK)
+async def get_course_generation_progress(
+    course_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return real-time curriculum & content readiness breakdown for the course."""
+    return await LessonJobService.get_course_generation_progress(db, current_user.id, course_id)
+
+
+@router.get("/{course_id}/lessons", status_code=status.HTTP_200_OK)
+async def list_course_lessons_status(
+    course_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return lightweight status summaries for all lessons in a course."""
+    return await LessonJobService.list_course_lessons_status(db, current_user.id, course_id)
+
+
+@router.post("/{course_id}/prefetch/pause", status_code=status.HTTP_200_OK)
+async def pause_course_prefetch(
+    course_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Pause background lesson prefetching for this course."""
+    await CourseService.get_course_detail(db, current_user.id, course_id)
+    LessonJobService.pause_prefetch(course_id)
+    return {"course_id": course_id, "prefetch_paused": True}
+
+
+@router.post("/{course_id}/prefetch/resume", status_code=status.HTTP_200_OK)
+async def resume_course_prefetch(
+    course_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Resume background lesson prefetching for this course."""
+    await CourseService.get_course_detail(db, current_user.id, course_id)
+    LessonJobService.resume_prefetch(course_id)
+    return {"course_id": course_id, "prefetch_paused": False}
+
+
+@router.post("/{course_id}/retry-failed", status_code=status.HTTP_200_OK)
+async def retry_failed_course_lessons(
+    course_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Re-enqueue failed lessons in this course."""
+    return await LessonJobService.retry_failed_lessons(db, current_user.id, course_id)
 
 
 @router.get("/{course_id}/modules/{chapter_id}/assessment", response_model=CourseAssessmentResponse, status_code=status.HTTP_200_OK)

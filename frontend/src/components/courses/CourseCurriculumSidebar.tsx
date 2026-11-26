@@ -1,5 +1,5 @@
 import React from 'react';
-import { Course } from '../../services/courseService';
+import { Course, CourseGenerationProgress } from '../../services/courseService';
 import { 
   CheckCircle2, 
   Circle, 
@@ -9,7 +9,10 @@ import {
   Sparkles,
   BarChart2,
   X,
-  Loader2
+  Loader2,
+  Pause,
+  Play,
+  RotateCw
 } from 'lucide-react';
 
 interface CourseCurriculumSidebarProps {
@@ -27,6 +30,10 @@ interface CourseCurriculumSidebarProps {
   isOpenMobile: boolean;
   onCloseMobile: () => void;
   hideOnDesktop?: boolean;
+  generationProgress?: CourseGenerationProgress | null;
+  onTogglePrefetch?: () => void;
+  onRetryFailed?: () => void;
+  onCancelActiveJob?: (lessonId: number) => void;
 }
 
 export const CourseCurriculumSidebar: React.FC<CourseCurriculumSidebarProps> = ({
@@ -44,6 +51,10 @@ export const CourseCurriculumSidebar: React.FC<CourseCurriculumSidebarProps> = (
   isOpenMobile,
   onCloseMobile,
   hideOnDesktop = false,
+  generationProgress = null,
+  onTogglePrefetch,
+  onRetryFailed,
+  onCancelActiveJob,
 }) => {
   // Compute progress & content readiness stats
   let totalLessons = 0;
@@ -68,7 +79,6 @@ export const CourseCurriculumSidebar: React.FC<CourseCurriculumSidebarProps> = (
   });
 
   const progressPercent = totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
-  const isGenerating = queuedLessons + generatingLessons > 0;
 
   const sidebarContent = (
     <div className="flex flex-col h-full bg-slate-900 border-r border-slate-800 text-slate-100 select-none">
@@ -122,26 +132,114 @@ export const CourseCurriculumSidebar: React.FC<CourseCurriculumSidebarProps> = (
           <div className="text-[10px] text-slate-500 text-right">
             {completedLessons} of {totalLessons} lessons completed
           </div>
-          {/* Separate Content Readiness Status */}
-          <div className="pt-1 border-t border-slate-800/70 flex items-center justify-between text-[10px] text-slate-400">
-            <span>Content Readiness</span>
-            <span className="font-mono text-emerald-400">
-              {readyLessons}/{totalLessons} ready
-            </span>
-          </div>
-          <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-[10px] text-slate-400 font-mono">
-            <span>Queued: {queuedLessons}</span>
-            <span>Generating: {generatingLessons}</span>
-            {failedLessons > 0 && <span className="text-rose-400">Failed: {failedLessons}</span>}
-          </div>
-          {isGenerating && (
-            <div className="flex items-center gap-1.5 pt-0.5">
-              <Loader2 className="h-3 w-3 text-indigo-400 animate-spin shrink-0" />
-              <span className="text-[10px] text-indigo-300">
-                On-demand ready ({queuedLessons + generatingLessons} remaining)
+          {/* Compact Course Generation Progress Dashboard */}
+          <div className="pt-2 border-t border-slate-800/70 space-y-1.5">
+            <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              <span>Course Generation</span>
+              {onTogglePrefetch && (
+                <button
+                  type="button"
+                  onClick={onTogglePrefetch}
+                  className="inline-flex items-center gap-1 text-[10px] font-medium text-indigo-300 hover:text-indigo-200"
+                >
+                  {generationProgress?.prefetch_paused ? (
+                    <>
+                      <Play className="h-2.5 w-2.5" /> Resume Prefetch
+                    </>
+                  ) : (
+                    <>
+                      <Pause className="h-2.5 w-2.5" /> Pause Prefetch
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between text-[10px] text-slate-400">
+              <span>Curriculum</span>
+              <span className="font-mono text-emerald-400">
+                {generationProgress?.total_lessons ?? totalLessons}/{generationProgress?.total_lessons ?? totalLessons} ready ({generationProgress?.curriculum_percentage ?? 100}%)
               </span>
             </div>
-          )}
+
+            <div className="flex items-center justify-between text-[10px] text-slate-400">
+              <span>Lesson Content</span>
+              <span className="font-mono text-indigo-300">
+                {generationProgress?.ready_lessons ?? readyLessons}/{generationProgress?.total_lessons ?? totalLessons} ready ({generationProgress?.content_readiness_percentage ?? (totalLessons > 0 ? Math.round((readyLessons / totalLessons) * 10000) / 100 : 0)}%)
+              </span>
+            </div>
+
+            <div className="w-full h-1 rounded-full bg-slate-800 overflow-hidden">
+              <div
+                className="h-full bg-emerald-500 transition-all duration-300 rounded-full"
+                style={{
+                  width: `${generationProgress?.content_readiness_percentage ?? (totalLessons > 0 ? (readyLessons / totalLessons) * 100 : 0)}%`,
+                }}
+              />
+            </div>
+
+            <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-[10px] text-slate-400 font-mono">
+              <span>{generationProgress?.queued_lessons ?? queuedLessons} queued</span>
+              <span>{generationProgress?.generating_lessons ?? generatingLessons} generating</span>
+              {(generationProgress?.failed_lessons ?? failedLessons) > 0 && (
+                <span className="text-rose-400">{generationProgress?.failed_lessons ?? failedLessons} failed</span>
+              )}
+            </div>
+
+            {generationProgress?.active_lesson_title && (
+              <div className="p-2 rounded-lg bg-slate-900/90 border border-indigo-500/20 space-y-1 text-[10px]">
+                <div className="flex items-center justify-between gap-1">
+                  <span className="text-indigo-300 font-semibold truncate">
+                    <Loader2 className="h-2.5 w-2.5 inline animate-spin mr-1" />
+                    {generationProgress.active_lesson_title}
+                  </span>
+                  <span className="font-mono text-slate-400 shrink-0">
+                    {Math.round(generationProgress.active_elapsed_seconds || 0)}s
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-1 text-slate-400">
+                  <span className="truncate">{generationProgress.active_stage || 'Generating'}</span>
+                  {onCancelActiveJob && generationProgress.active_lesson_id && (
+                    <button
+                      type="button"
+                      onClick={() => onCancelActiveJob(generationProgress.active_lesson_id!)}
+                      className="text-rose-300 hover:text-rose-200 shrink-0"
+                    >
+                      Cancel
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {(generationProgress?.failed_lessons ?? failedLessons) > 0 && onRetryFailed && (
+              <button
+                type="button"
+                onClick={onRetryFailed}
+                className="w-full inline-flex items-center justify-center gap-1 py-1 rounded-lg bg-rose-500/15 border border-rose-500/30 text-[10px] font-semibold text-rose-300 hover:bg-rose-500/25"
+              >
+                <RotateCw className="h-3 w-3" />
+                Retry Failed Lessons ({generationProgress?.failed_lessons ?? failedLessons})
+              </button>
+            )}
+
+            {generationProgress?.documents_progress && generationProgress.documents_progress.length > 0 && (
+              <div className="pt-1.5 border-t border-slate-800/60 space-y-1">
+                {generationProgress.documents_progress.slice(0, 2).map((doc, idx) => (
+                  <div key={doc.document_id} className="text-[10px] text-slate-400">
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="font-semibold text-slate-300 truncate">
+                        DOC {idx + 1}: {doc.filename}
+                      </span>
+                      <span className="font-mono text-emerald-400 shrink-0">
+                        {doc.indexing_status === 'complete' ? 'Indexed' : doc.embedding_status === 'running' ? 'Embedding' : doc.extraction_status}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

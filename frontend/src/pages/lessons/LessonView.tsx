@@ -14,6 +14,7 @@ import {
   LessonExercise,
   GenerationJob,
   LessonJobStatus,
+  CourseGenerationProgress,
 } from '../../services/courseService';
 import {
   ArrowLeft,
@@ -63,6 +64,7 @@ export const LessonView: React.FC = () => {
   const [tutorTrigger, setTutorTrigger] = useState<{ exercise: LessonExercise; nonce: number } | null>(null);
   const [genJob, setGenJob] = useState<GenerationJob | null>(null);
   const [lessonJobStatus, setLessonJobStatus] = useState<LessonJobStatus | null>(null);
+  const [generationProgress, setGenerationProgress] = useState<CourseGenerationProgress | null>(null);
 
   // Flatten ordered lessons list for Prev/Next navigation
   const flatLessons = useMemo(() => {
@@ -259,6 +261,38 @@ export const LessonView: React.FC = () => {
       clearInterval(timer);
     };
   }, [activeLesson?.id, activeLesson?.generation_status]);
+
+  // Real-time Course Generation Progress polling
+  useEffect(() => {
+    if (!courseId || !course) return;
+    let cancelled = false;
+
+    const fetchProgress = async () => {
+      try {
+        const prog = await courseService.getCourseGenerationProgress(Number(courseId));
+        if (!cancelled) setGenerationProgress(prog);
+      } catch {
+        // Ignore transient poll errors
+      }
+    };
+
+    fetchProgress();
+    const hasPending =
+      course.chapters?.some((ch) =>
+        ch.topics.some(
+          (t) =>
+            t.lesson?.generation_status === 'queued' ||
+            t.lesson?.generation_status === 'generating'
+        )
+      ) ?? false;
+
+    if (!hasPending) return () => { cancelled = true; };
+    const timer = setInterval(fetchProgress, 4000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [courseId, course]);
 
   // Refresh the full course sidebar every 20s when any lessons are still generating
   useEffect(() => {
@@ -496,6 +530,41 @@ export const LessonView: React.FC = () => {
           isOpenMobile={isMobileSidebarOpen}
           onCloseMobile={() => setIsMobileSidebarOpen(false)}
           hideOnDesktop={!showCurriculum}
+          generationProgress={generationProgress}
+          onTogglePrefetch={async () => {
+            if (!courseId) return;
+            try {
+              const res = generationProgress?.prefetch_paused
+                ? await courseService.resumePrefetch(Number(courseId))
+                : await courseService.pausePrefetch(Number(courseId));
+              setGenerationProgress((prev) =>
+                prev ? { ...prev, prefetch_paused: res.prefetch_paused } : prev
+              );
+            } catch {
+              // Ignore
+            }
+          }}
+          onRetryFailed={async () => {
+            if (!courseId) return;
+            try {
+              await courseService.retryFailedLessons(Number(courseId));
+              const prog = await courseService.getCourseGenerationProgress(Number(courseId));
+              setGenerationProgress(prog);
+            } catch {
+              // Ignore
+            }
+          }}
+          onCancelActiveJob={async (lid: number) => {
+            try {
+              await courseService.cancelLesson(lid);
+              if (courseId) {
+                const prog = await courseService.getCourseGenerationProgress(Number(courseId));
+                setGenerationProgress(prog);
+              }
+            } catch {
+              // Ignore
+            }
+          }}
         />
 
         {/* Center Pane: Overview, Lesson + Interactive Practice, or Assessment */}

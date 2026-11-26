@@ -266,7 +266,7 @@ export const LessonContentView: React.FC<LessonContentViewProps> = ({
           </div>
         )}
 
-        {/* Generating / Queued In-Progress Pipeline Stepper */}
+        {/* Generating / Queued In-Progress 10-Stage Pipeline Stepper */}
         {(lesson.generation_status === 'generating' || lesson.generation_status === 'queued') ? (
           <div className="py-10 px-4 max-w-xl mx-auto space-y-5">
             <div className="flex items-center justify-between gap-3">
@@ -274,11 +274,15 @@ export const LessonContentView: React.FC<LessonContentViewProps> = ({
                 <Spinner size="md" className="text-indigo-400 shrink-0" />
                 <div>
                   <p className="text-sm font-bold text-white">
-                    {jobStatus?.current_stage || (lesson.generation_status === 'queued' ? 'Preparing source material' : 'Generating lesson content')}
+                    {lesson.title}: {jobStatus?.current_stage || (lesson.generation_status === 'queued' ? 'Queued for synthesis' : 'Generating lesson content')}
                   </p>
                   <p className="text-xs text-slate-400">
                     Elapsed: <span className="font-mono text-indigo-300">{Math.round(jobStatus?.elapsed_seconds || 0)}s</span>
+                    {jobStatus?.stage_duration_ms != null && (
+                      <span> · Stage: {Math.round(jobStatus.stage_duration_ms / 1000)}s</span>
+                    )}
                     {jobStatus?.retry_count ? ` · Retry #${jobStatus.retry_count}` : ''}
+                    {jobStatus?.generated_tokens ? ` · ${jobStatus.generated_tokens} tokens` : ''}
                   </p>
                 </div>
               </div>
@@ -289,17 +293,59 @@ export const LessonContentView: React.FC<LessonContentViewProps> = ({
               )}
             </div>
 
-            <div className="space-y-2 rounded-xl bg-slate-950/70 border border-slate-800 p-4 text-xs">
+            {jobStatus?.progress_percentage != null ? (
+              <div className="space-y-1">
+                <div className="flex justify-between text-[11px] text-slate-400 font-mono">
+                  <span>Stage {jobStatus.completed_stages ?? 0}/{jobStatus.total_stages ?? 10}</span>
+                  <span>{jobStatus.progress_percentage}%</span>
+                </div>
+                <div className="w-full h-1.5 rounded-full bg-slate-800 overflow-hidden">
+                  <div
+                    className="h-full bg-indigo-500 transition-all duration-300 rounded-full"
+                    style={{ width: `${jobStatus.progress_percentage}%` }}
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                <div className="flex justify-between text-[11px] text-slate-400 font-mono">
+                  <span>{jobStatus?.status === 'GENERATING' ? 'Streaming local LLM inference…' : 'Preparing stage…'}</span>
+                  <span>In progress</span>
+                </div>
+                <div className="w-full h-1.5 rounded-full bg-slate-800 overflow-hidden">
+                  <div className="h-full w-1/3 bg-indigo-500/80 animate-pulse rounded-full" />
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-1.5 rounded-xl bg-slate-950/70 border border-slate-800 p-4 text-xs">
               {[
-                { key: 'QUEUED', label: 'Preparing source material' },
-                { key: 'RETRIEVING_SOURCE', label: 'Retrieving relevant sections' },
-                { key: 'GENERATING', label: 'Generating lesson content' },
-                { key: 'VALIDATING', label: 'Validating technical explanations & exercises' },
-                { key: 'COMPLETED', label: 'Saving lesson' },
+                { key: 'CHECKING_CACHE', label: '1. Checking cache' },
+                { key: 'CHECKING_DOCUMENT', label: '2. Checking document readiness' },
+                { key: 'RETRIEVING_SOURCE', label: '3. Retrieving source passages' },
+                { key: 'PREPARING_CONTEXT', label: '4. Preparing context' },
+                { key: 'GENERATING', label: '5. Generating lesson' },
+                { key: 'VALIDATING', label: '6. Validating content' },
+                { key: 'REPAIRING_CODE', label: '7. Repairing invalid code (if needed)' },
+                { key: 'PREPARING_EXERCISES', label: '8. Preparing exercises' },
+                { key: 'SAVING', label: '9. Saving lesson' },
+                { key: 'COMPLETED', label: '10. Completed' },
               ].map((st, idx) => {
-                const order = ['QUEUED', 'RETRIEVING_SOURCE', 'GENERATING', 'VALIDATING', 'SAVING', 'COMPLETED'];
-                const curStatus = jobStatus?.status || (lesson.generation_status === 'queued' ? 'QUEUED' : 'GENERATING');
-                const curIdx = Math.max(0, order.indexOf(curStatus));
+                const order = [
+                  'CHECKING_CACHE',
+                  'CHECKING_DOCUMENT',
+                  'RETRIEVING_SOURCE',
+                  'PREPARING_CONTEXT',
+                  'GENERATING',
+                  'VALIDATING',
+                  'REPAIRING_CODE',
+                  'PREPARING_EXERCISES',
+                  'SAVING',
+                  'COMPLETED',
+                ];
+                const curStatus = jobStatus?.status || (lesson.generation_status === 'queued' ? 'CHECKING_CACHE' : 'GENERATING');
+                const rawIdx = order.indexOf(curStatus);
+                const curIdx = rawIdx >= 0 ? rawIdx : 0;
                 const done = idx < curIdx;
                 const active = idx === curIdx;
                 return (
@@ -317,9 +363,12 @@ export const LessonContentView: React.FC<LessonContentViewProps> = ({
               })}
             </div>
 
-            <p className="text-xs text-slate-400 text-center">
-              You can navigate to other ready lessons while this lesson synthesizes in the background.
-            </p>
+            <div className="flex items-center justify-between text-[11px] text-slate-500">
+              <span>You can navigate to other ready lessons while this lesson synthesizes.</span>
+              {jobStatus?.updated_at && (
+                <span className="font-mono">Updated {new Date(jobStatus.updated_at).toLocaleTimeString()}</span>
+              )}
+            </div>
           </div>
         ) : (
           <>
