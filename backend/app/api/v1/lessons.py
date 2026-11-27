@@ -51,6 +51,16 @@ async def regenerate_lesson(
     return await CourseService.regenerate_lesson(db, current_user.id, lesson_id)
 
 
+@router.post("/{lesson_id}/validate", status_code=status.HTTP_200_OK)
+async def validate_lesson(
+    lesson_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Validate source coverage, technical accuracy, and exercise alignment for an existing lesson."""
+    return await CourseService.validate_lesson(db, current_user.id, lesson_id)
+
+
 @router.get("/{lesson_id}/status", status_code=status.HTTP_200_OK)
 async def get_lesson_job_status(
     lesson_id: int,

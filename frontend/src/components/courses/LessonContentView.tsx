@@ -437,12 +437,18 @@ export const LessonContentView: React.FC<LessonContentViewProps> = ({
             {/* Interactive Concept Cards */}
             {lesson.structured_sections?.concept_cards &&
               lesson.structured_sections.concept_cards.length > 0 && (
-                <InteractiveConceptDeck cards={lesson.structured_sections.concept_cards} />
+                <InteractiveConceptDeck
+                  lessonId={lesson.id}
+                  cards={lesson.structured_sections.concept_cards}
+                />
               )}
 
             {/* Interactive Matching Exercise */}
             {lesson.structured_sections?.matching_exercise && (
-              <InteractiveMatchingCard matching={lesson.structured_sections.matching_exercise} />
+              <InteractiveMatchingCard
+                lessonId={lesson.id}
+                matching={lesson.structured_sections.matching_exercise}
+              />
             )}
 
             {/* Selectable Architecture Diagram */}
@@ -479,6 +485,18 @@ export const LessonContentView: React.FC<LessonContentViewProps> = ({
         {/* Bottom Actions & Navigation Bar */}
         <div className="pt-8 border-t border-line space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            {onRegenerate && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onRegenerate}
+                isLoading={isRegenerating}
+                icon={<RotateCw className="h-3.5 w-3.5" />}
+                title="Regenerate lesson content while preserving your progress"
+              >
+                Regenerate
+              </Button>
+            )}
             <Button
               variant={lesson.is_completed ? 'secondary' : 'primary'}
               onClick={onToggleComplete}

@@ -32,7 +32,8 @@ class ExerciseAgent:
         source_reference: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """Generate 5-6 topic-relevant interactive exercises grounded in lesson & source text."""
-        if not model_router.is_local_only() and lesson_content.strip():
+        from app.core.config import settings
+        if not model_router.is_local_only() and not settings.GROQ_API_KEY and lesson_content.strip():
             llm_exercises = await cls._generate_via_llm(
                 topic_title=topic_title,
                 chapter_title=chapter_title,
@@ -71,16 +72,26 @@ class ExerciseAgent:
         source_reference: Optional[str],
     ) -> List[Dict[str, Any]]:
         is_code = domain == "computer_science" or content_type == "programming" or "```python" in lesson_content
+        from app.core.config import settings
+        compact_groq = bool(settings.GROQ_API_KEY)
+        ex_count = 3 if compact_groq else 5
+        ex_mix = (
+            ("2 MCQs (concept, scenario) and 1 coding lab (short Python assertions)." if is_code else "2 MCQs (concept, scenario) and 1 fill_blank.")
+            if compact_groq
+            else (
+                "3 MCQs (concept understanding, scenario application, misconception check), 1 fill_blank, and "
+                + ("1 coding lab (complete Python assertions)." if is_code else "1 mini_task (scenario analysis).")
+            )
+        )
         prompt = (
-            f"Create 5 high-quality interactive exercises STRICTLY testing the technical concepts in '{topic_title}' "
+            f"Create {ex_count} concise interactive exercises STRICTLY testing the technical concepts in '{topic_title}' "
             f"(Module: '{chapter_title}', Source: {source_reference or chapter_title}, Difficulty: {difficulty}).\n\n"
             "STRICT RULES:\n"
             "- NEVER use learning objective sentences as MCQ answers.\n"
             "- Every distractor must be plausible and domain-related.\n"
-            "- Include: 3 MCQs (concept understanding, scenario application, misconception check), 1 fill_blank, and "
-            + ("1 coding lab (complete Python assertions)." if is_code else "1 mini_task (scenario analysis).")
-            + "\nReturn ONLY valid JSON list of exercise objects.\n"
-            f"\nLesson:\n{lesson_content[:2000]}\n\nSource:\n{source_text[:1200]}"
+            f"- Include: {ex_mix}\n"
+            "Return ONLY valid JSON list of exercise objects.\n"
+            f"\nLesson:\n{lesson_content[:1200 if compact_groq else 2000]}\n\nSource:\n{source_text[:600 if compact_groq else 1200]}"
         )
         try:
             res = await model_router.generate(
@@ -144,7 +155,6 @@ class ExerciseAgent:
             domain == "computer_science"
             or content_type == "programming"
             or "```python" in lesson_content
-            or any(k in combined.lower() for k in ("fastapi", "pydantic", "async ", "http", "endpoint", "def ", "python"))
         )
 
         ref_tag = f" *(Source: {source_reference})*" if source_reference else ""
@@ -154,7 +164,19 @@ class ExerciseAgent:
         exercises: List[Dict[str, Any]] = []
         order = 0
         for q in mcqs:
+            # Rotate MCQ options deterministically so correct_answer is not always index 0
+            opts = list(q.get("options") or [])
+            exps = list(q.get("option_explanations") or [])
+            if len(opts) >= 3:
+                shift = (order + len(topic_title)) % len(opts)
+                if shift:
+                    q["options"] = opts[shift:] + opts[:shift]
+                    if len(exps) == len(opts):
+                        q["option_explanations"] = exps[shift:] + exps[:shift]
             q["order_index"] = order
+            q.setdefault("objective_id", f"obj_{order + 1}")
+            q.setdefault("expected_skill", q.get("title") or topic_title)
+            q.setdefault("source_reference", source_reference or chapter_title)
             exercises.append(q)
             order += 1
 
@@ -198,7 +220,7 @@ class ExerciseAgent:
     ) -> List[Dict[str, Any]]:
         low = f"{topic_title} {chapter_title}".lower()
 
-        if any(k in low for k in ("http", "rest", "crud", "endpoint")):
+        if any(k in low for k in ("http", "rest", "crud", "endpoint")) and "layer" not in low:
             return [
                 {
                     "exercise_type": "mcq",
@@ -265,7 +287,7 @@ class ExerciseAgent:
                 },
             ]
 
-        if any(k in low for k in ("service", "api", "rpc", "messaging", "kinds of api")):
+        if any(k in low for k in ("services and apis", "kinds of api", "pub-sub", "message queue", "rpc", "messaging")):
             return [
                 {
                     "exercise_type": "mcq",
@@ -620,15 +642,15 @@ class ExerciseAgent:
     ) -> Dict[str, Any]:
         low = topic_title.lower()
         presets = [
+            ("layer", "Separating Web, Service, and Data components enforces information ____ so storage changes do not break HTTP routes.", "hiding", "Information hiding isolates internal implementation details behind layer interfaces."),
             ("http", "A RESTful web service pairs each resource URL with an HTTP ____ (such as GET, POST, PUT, PATCH, or DELETE).", "method", "HTTP methods (verbs) specify the CRUD operation performed on a URL resource."),
             ("rest", "Because REST APIs are ____, each request carries all context needed without relying on prior server session memory.", "stateless", "Statelessness lets servers scale horizontally without pinned session affinity."),
             ("json", "Unlike verbose XML, ____ encodes lists and key-value objects in a lightweight wire format familiar to Python and JavaScript.", "JSON", "JavaScript Object Notation (JSON) is the dominant structured payload format for modern REST APIs."),
             ("graphql", "____ allows clients to specify exact nested fields in a query instead of accepting fixed REST response shapes.", "GraphQL", "Facebook/Meta created GraphQL to solve over-fetching and under-fetching across REST endpoints."),
-            ("service", "An API acts as a formal ____ between software components, specifying protocols, inputs, and response structures.", "contract", "Defining an explicit API contract keeps frontend and backend evolution decoupled."),
             ("concurren", "Asynchronous `async`/`await` execution boosts ____ (bytes or requests per second) when waiting on I/O.", "throughput", "While latency is upfront wait time, throughput measures sustained volume per second."),
             ("async", "Running heavy CPU-bound loops inside a single-threaded event loop blocks ____ execution across requests.", "asynchronous", "Event loops rely on cooperative `await` yields rather than preemptive CPU threading."),
-            ("layer", "Separating Web, Service, and Data components enforces information ____ so storage changes do not break HTTP routes.", "hiding", "Information hiding isolates internal implementation details behind layer interfaces."),
             ("pydantic", "FastAPI relies on Python type hints and ____ models to validate incoming JSON request payloads automatically.", "Pydantic", "Pydantic parses, coerces, and raises clear 422 errors on invalid request schemas."),
+            ("service", "An API acts as a formal ____ between software components, specifying protocols, inputs, and response structures.", "contract", "Defining an explicit API contract keeps frontend and backend evolution decoupled."),
         ]
         for kw, template, ans, exp in presets:
             if kw in low:
@@ -683,7 +705,7 @@ class ExerciseAgent:
         difficulty: str,
     ) -> Dict[str, Any]:
         """Return a topic-authentic Python coding lab evaluated in the isolated subprocess sandbox."""
-        if any(k in low for k in ("http", "rest", "crud", "endpoint")):
+        if any(k in low for k in ("http", "rest", "crud", "endpoint")) and "layer" not in low:
             return {
                 "order_index": order_index,
                 "exercise_type": "coding",
@@ -879,38 +901,38 @@ class ExerciseAgent:
                 "difficulty": difficulty,
             }
 
-        # Default Service / API Contract lab
+        # Default topic-aligned Python processing lab (no unrelated messaging/creature boilerplate)
         return {
             "order_index": order_index,
             "exercise_type": "coding",
-            "title": f"Coding Lab: Messaging & Service Dispatcher ({topic_title})",
+            "title": f"Coding Lab: Implement & Validate ({topic_title})",
             "prompt": (
-                "Implement `dispatch_message(pattern, subscribers, message)` simulating API messaging styles:\n"
-                "- `'pub_sub'`: every subscriber receives `message` -> return `[{'worker': s, 'msg': message} for s in subscribers]`.\n"
-                "- `'queue'`: only the first subscriber consumes `message` -> return `[{'worker': subscribers[0], 'msg': message}]` if subscribers else `[]`."
+                f"Implement `evaluate_record(record)` to enforce input invariants for **{topic_title}**:\n"
+                "- Require `record` to be a `dict` with a non-empty `'name'` string and numeric `'score'` >= 0.\n"
+                "- Return `(True, {'name': record['name'].strip(), 'score': float(record['score'])})` if valid, else `(False, 'Invalid record')`."
             ),
             "starter_code": (
-                "def dispatch_message(pattern, subscribers, message):\n"
-                "    # Implement 'pub_sub' broadcast vs 'queue' single-consumer dispatch\n"
+                "def evaluate_record(record):\n"
+                "    # Validate dict type, non-empty 'name', and numeric 'score' >= 0\n"
                 "    pass\n"
             ),
-            "expected_output": "[{'worker': 'w1', 'msg': 'email'}]",
+            "expected_output": "(True, {'name': 'sample', 'score': 1.0})",
             "test_cases": [
                 {
-                    "description": "Pub-sub delivers message to all subscribers",
-                    "assert_code": "assert len(dispatch_message('pub_sub', ['w1', 'w2'], 'ev')) == 2",
+                    "description": "Accepts valid record and normalizes name/score",
+                    "assert_code": "assert evaluate_record({'name': ' sample ', 'score': 1}) == (True, {'name': 'sample', 'score': 1.0})",
                 },
                 {
-                    "description": "Queue delivers message to only one worker",
-                    "assert_code": "assert dispatch_message('queue', ['w1', 'w2'], 'job') == [{'worker': 'w1', 'msg': 'job'}]",
+                    "description": "Rejects negative score",
+                    "assert_code": "assert evaluate_record({'name': 'bad', 'score': -2}) == (False, 'Invalid record')",
                 },
                 {
-                    "description": "Handles empty subscriber list safely",
-                    "assert_code": "assert dispatch_message('queue', [], 'job') == []",
+                    "description": "Rejects empty name or non-dict input",
+                    "assert_code": "assert evaluate_record({'name': '  ', 'score': 5}) == (False, 'Invalid record')",
                 },
             ],
-            "hints": ["Branch on `if pattern == 'pub_sub':` vs `elif pattern == 'queue':`."],
-            "explanation": "Pub-Sub broadcasts events to all listeners, whereas a Queue ensures each job is processed once by a worker pool.",
+            "hints": ["Check `isinstance(record, dict)` first, then validate `name` and `score`."],
+            "explanation": f"Explicit input validation ensures components applying {topic_title} fail fast on malformed data.",
             "difficulty": difficulty,
         }
 
@@ -923,7 +945,7 @@ class ExerciseAgent:
         difficulty: str,
     ) -> Dict[str, Any]:
         """Return a topic-specific debugging challenge (NEVER reused latency arithmetic across unrelated topics!)."""
-        if any(k in low for k in ("http", "rest", "crud", "endpoint")):
+        if any(k in low for k in ("http", "rest", "crud", "endpoint")) and "layer" not in low:
             buggy = (
                 "def update_or_get_route(method, creatures, name, new_country=None):\n"
                 "    \"\"\"GET reads creature cleanly; PATCH updates country; unknown returns 404.\"\"\"\n"
@@ -1083,8 +1105,8 @@ class ExerciseAgent:
             "buggy_code": buggy,
             "starter_code": buggy,
             "test_cases": [
-                {"description": "Validates 'endpoint' key properly", "assert_code": "assert validate_api_contract({'endpoint': '/creatures', 'method': 'GET'})[0] is True"},
-                {"description": "Accepts lowercase HTTP method", "assert_code": "assert validate_api_contract({'endpoint': '/creatures', 'method': 'get'})[0] is True"},
+                {"description": "Validates 'endpoint' key properly", "assert_code": "assert validate_api_contract({'endpoint': '/items', 'method': 'GET'})[0] is True"},
+                {"description": "Accepts lowercase HTTP method", "assert_code": "assert validate_api_contract({'endpoint': '/items', 'method': 'get'})[0] is True"},
                 {"description": "Rejects empty endpoint", "assert_code": "assert validate_api_contract({'endpoint': '', 'method': 'POST'})[0] is False"},
             ],
             "hints": ["Replace `request_body.get('url')` with `request_body.get('endpoint')`.", "Normalize method with `str(request_body.get('method', '')).upper()`."],

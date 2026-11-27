@@ -28,43 +28,65 @@ class LessonEvaluator:
         source_text: str = "",
         subtopics: Optional[List[str]] = None,
         exercises: Optional[List[Dict[str, Any]]] = None,
+        learning_objectives: Optional[List[str]] = None,
+        technical_validation: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         reasons: List[str] = []
+        repair_suggestions: List[str] = []
         lower = (lesson_content or "").lower()
         words = len((lesson_content or "").split())
 
-        # 1. Source accuracy (25 pts)
+        # 1. Source accuracy (25 pts) — deterministic sorted term overlap including 3+ char tech terms
         src_pts = 25.0
-        if not ("[SOURCE-BASED]" in lesson_content or "[SUPPLEMENTARY EXPLANATION]" in lesson_content):
+        has_source_tag = "[SOURCE-BASED]" in lesson_content
+        has_supp_tag = "[SUPPLEMENTARY EXPLANATION]" in lesson_content
+        if not (has_source_tag or has_supp_tag):
             src_pts -= 5.0
             reasons.append("Missing [SOURCE-BASED] / [SUPPLEMENTARY EXPLANATION] grounding tags")
         found_forbidden = [ph for ph in FORBIDDEN_PHRASES if ph in lower]
         if found_forbidden:
             src_pts -= 10.0
             reasons.append(f"Forbidden/filler phrases found: {found_forbidden[:3]}")
+        source_ratio = 1.0
         if source_text:
-            src_terms = set(re.findall(r"\b[a-z]{5,}\b", source_text.lower()))
+            src_terms = sorted(set(re.findall(r"\b[a-z0-9]{3,}\b", source_text.lower())))[:40]
             if src_terms:
-                overlap = sum(1 for t in list(src_terms)[:30] if t in lower)
-                ratio = overlap / min(30, len(src_terms))
-                if ratio < 0.2:
-                    src_pts -= 10.0
-                    reasons.append(f"Low source terminology alignment ({ratio:.0%})")
+                overlap = sum(1 for t in src_terms if re.search(rf"\b{re.escape(t)}\b", lower))
+                source_ratio = overlap / len(src_terms)
+                if source_ratio < 0.15:
+                    src_pts -= 14.0
+                    reasons.append(f"Low source terminology alignment ({source_ratio:.0%})")
+                    repair_suggestions.append("Incorporate exact terminology and examples from the assigned source pages.")
+                elif source_ratio < 0.25:
+                    src_pts -= 7.0
+                    reasons.append(f"Moderate source terminology alignment ({source_ratio:.0%})")
         src_pts = max(0.0, round(src_pts, 1))
 
-        # 2. Concept coverage (20 pts)
+        # 2. Concept & objective coverage (20 pts)
         subs = subtopics or []
         if subs:
-            covered = [s for s in subs if any(tok in lower for tok in re.findall(r"[a-z0-9]{3,}", s.lower()))]
+            covered = [
+                s for s in subs
+                if any(re.search(rf"\b{re.escape(tok)}\b", lower) for tok in re.findall(r"[a-z0-9]{3,}", s.lower()))
+            ]
             cov_pts = round((len(covered) / len(subs)) * 20.0, 1)
             if len(covered) < len(subs):
                 reasons.append(f"Subtopics covered: {len(covered)}/{len(subs)}")
         else:
             topic_toks = re.findall(r"[a-z0-9]{3,}", topic_title.lower())
-            hits = sum(1 for tok in topic_toks if tok in lower)
+            hits = sum(1 for tok in topic_toks if re.search(rf"\b{re.escape(tok)}\b", lower))
             cov_pts = round((hits / max(1, len(topic_toks))) * 20.0, 1)
 
-        # 3. Explanation quality (15 pts) — substance + prose balance, not raw word count
+        if learning_objectives:
+            obj_hits = 0
+            for obj in learning_objectives:
+                obj_toks = [t for t in re.findall(r"[a-z0-9]{4,}", obj.lower()) if t not in {"explain", "define", "trace", "apply", "differentiate"}]
+                if not obj_toks or any(re.search(rf"\b{re.escape(t)}\b", lower) for t in obj_toks):
+                    obj_hits += 1
+            if obj_hits < len(learning_objectives):
+                reasons.append(f"Learning objectives aligned: {obj_hits}/{len(learning_objectives)}")
+
+        # 3. Explanation quality (15 pts)
         exp_pts = 0.0
         if "## Introduction" in lesson_content:
             exp_pts += 4.0
@@ -76,53 +98,69 @@ class LessonEvaluator:
             reasons.append("Missing ## Core Concepts")
         if "## Common Mistakes" in lesson_content or "## Real-World Application" in lesson_content:
             exp_pts += 3.0
-        if words >= 320:
+        if words >= 260:
             exp_pts += 2.0
-        elif words < 200:
+        elif words < 150:
             reasons.append(f"Explanation too brief ({words} words)")
         exp_pts = min(15.0, round(exp_pts, 1))
 
-        # 4. Technical correctness (15 pts)
+        # 4. Technical correctness & structure (15 pts)
         tech_pts = 0.0
         if "## Learning Objectives" in lesson_content:
-            tech_pts += 5.0
+            tech_pts += 4.0
         if "## Key Takeaways" in lesson_content:
-            tech_pts += 5.0
+            tech_pts += 4.0
         if "## Check Your Understanding" in lesson_content or "**Knowledge Check**" in lesson_content:
-            tech_pts += 5.0
-        if tech_pts < 15.0:
-            reasons.append("Missing structured Learning Objectives / Key Takeaways / Knowledge Check")
+            tech_pts += 4.0
+        tech_ok = True
+        if technical_validation:
+            if not technical_validation.get("technical_accuracy_ok", True):
+                tech_ok = False
+                reasons.append(f"Technical syntax/API errors: {technical_validation.get('syntax_errors')}")
+            elif technical_validation.get("deprecated_warnings"):
+                reasons.append(f"Deprecation notes: {technical_validation['deprecated_warnings'][0]}")
+                tech_pts += 2.0
+            else:
+                tech_pts += 3.0
+        else:
+            tech_pts += 3.0
+        tech_pts = min(15.0, round(tech_pts, 1))
 
-        # 5. Code/example validity (15 pts)
-        code_blocks = re.findall(r"```python\n(.*?)```", lesson_content or "", flags=re.DOTALL)
+        # 5. Code/example validity (15 pts) — AST + scope check without re-spawning slow subprocesses
+        code_blocks = re.findall(r"```python[ \t]*\r?\n(.*?)```", lesson_content or "", flags=re.DOTALL)
         code_valid_all = True
         code_reports: List[Dict[str, Any]] = []
         if code_blocks:
             for blk in code_blocks:
-                rep = CodeValidationPipeline.validate_code_block(blk, run_in_sandbox=True)
+                if "```" in blk or not blk.strip():
+                    continue
+                rep = CodeValidationPipeline.validate_code_block(blk, run_in_sandbox=False)
                 code_reports.append(rep.to_dict())
                 if not rep.valid:
                     code_valid_all = False
                     reasons.append(f"Code validation failed: {rep.error_message}")
             code_pts = 15.0 if code_valid_all else 5.0
         else:
-            # Conceptual non-code topics still get partial example credit if Worked Example exists
             code_pts = 10.0 if "## Worked Example" in lesson_content else 4.0
             if "## Worked Example" not in lesson_content:
                 reasons.append("Missing ## Worked Example")
 
-        # 6. Exercise relevance (10 pts)
+        # 6. Exercise relevance (10 pts) — strict keyword alignment (no len > 40 bypass)
         ex_list = exercises or []
+        unrelated_exercises = False
         if ex_list:
-            topic_words = set(re.findall(r"[a-z0-9]{3,}", topic_title.lower()))
+            topic_words = set(re.findall(r"[a-z0-9]{3,}", f"{topic_title} {' '.join(subs)}".lower()))
             relevant = 0
             for ex in ex_list:
                 blob = f"{ex.get('title', '')} {ex.get('prompt', '')}".lower()
-                if any(w in blob for w in topic_words) or len(blob) > 40:
+                if any(re.search(rf"\b{re.escape(w)}\b", blob) for w in topic_words):
                     relevant += 1
             ex_pts = round((relevant / len(ex_list)) * 10.0, 1)
+            if relevant == 0:
+                unrelated_exercises = True
+                reasons.append("Exercises do not reference the lesson topic")
         else:
-            ex_pts = 8.0  # Evaluated standalone before ExerciseAgent runs
+            ex_pts = 8.0
 
         total = round(src_pts + cov_pts + exp_pts + tech_pts + code_pts + ex_pts, 1)
         critical_failures: List[str] = []
@@ -130,14 +168,20 @@ class LessonEvaluator:
             critical_failures.append("invalid_code_block")
         if found_forbidden:
             critical_failures.append("forbidden_filler_phrases")
-        if src_pts < 15.0:
+        if src_pts < 12.0 or (source_text and source_ratio == 0.0 and len(source_text) > 200):
             critical_failures.append("low_source_accuracy")
+        if not tech_ok:
+            critical_failures.append("technical_inaccuracy")
+        if unrelated_exercises:
+            critical_failures.append("unrelated_exercises")
 
         passed = total >= 70.0 and len(critical_failures) == 0
         return {
             "total_score": total,
             "passed": passed,
             "critical_failures": critical_failures,
+            "reasons": reasons,
+            "repair_suggestions": repair_suggestions,
             "breakdown": {
                 "source_accuracy": src_pts,
                 "concept_coverage": cov_pts,

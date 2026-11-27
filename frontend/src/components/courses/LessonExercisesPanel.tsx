@@ -20,6 +20,7 @@ import {
   PenLine,
   Send,
   Bot,
+  ExternalLink,
 } from 'lucide-react';
 
 interface LessonExercisesPanelProps {
@@ -73,18 +74,54 @@ export const LessonExercisesPanel: React.FC<LessonExercisesPanelProps> = ({
   const [activeFilter, setActiveFilter] = useState<string>('all');
 
   useEffect(() => {
+    let savedState: any = {};
+    try {
+      const raw = localStorage.getItem(`learnforge_exercises_${lessonId}`);
+      if (raw) savedState = JSON.parse(raw);
+    } catch {
+      savedState = {};
+    }
+
     const initialCode: Record<number, string> = {};
+    const initialSubs: Record<number, ExerciseSubmitResult> = { ...(savedState.submissions || {}) };
+    const initialRuns: Record<number, CodeRunResult> = { ...(savedState.runOutputs || {}) };
+
     exercises.forEach((ex) => {
-      if (ex.starter_code || ex.buggy_code) {
+      const wsCode = localStorage.getItem(`learnforge_ex_code_${lessonId}_${ex.id}`);
+      const wsSub = localStorage.getItem(`learnforge_ex_submit_${lessonId}_${ex.id}`);
+      const wsRun = localStorage.getItem(`learnforge_ex_run_${lessonId}_${ex.id}`);
+      if (wsCode !== null) {
+        initialCode[ex.id] = wsCode;
+      } else if (savedState.codeInputs?.[ex.id] !== undefined) {
+        initialCode[ex.id] = savedState.codeInputs[ex.id];
+      } else if (ex.starter_code || ex.buggy_code) {
         initialCode[ex.id] = ex.starter_code || ex.buggy_code || '';
       }
+      if (wsSub) {
+        try { initialSubs[ex.id] = JSON.parse(wsSub); } catch {}
+      }
+      if (wsRun) {
+        try { initialRuns[ex.id] = JSON.parse(wsRun); } catch {}
+      }
     });
+
     setCodeInputs(initialCode);
-    setSubmissions({});
-    setRunOutputs({});
-    setSelectedAnswers({});
+    setSubmissions(initialSubs);
+    setRunOutputs(initialRuns);
+    setSelectedAnswers(savedState.selectedAnswers || {});
     setRevealedHints({});
   }, [lessonId, exercises]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        `learnforge_exercises_${lessonId}`,
+        JSON.stringify({ selectedAnswers, codeInputs, submissions, runOutputs }),
+      );
+    } catch {
+      // ignore storage quota errors
+    }
+  }, [lessonId, selectedAnswers, codeInputs, submissions, runOutputs]);
 
   if (!exercises || exercises.length === 0) return null;
 
@@ -332,19 +369,30 @@ export const LessonExercisesPanel: React.FC<LessonExercisesPanelProps> = ({
                       <span className="font-mono font-semibold text-codeblock-text">
                         python_sandbox.py (Isolated Subprocess)
                       </span>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setCodeInputs((p) => ({
-                            ...p,
-                            [ex.id]: ex.starter_code || ex.buggy_code || '',
-                          }))
-                        }
-                        className="inline-flex items-center gap-1 text-codeblock-muted hover:text-codeblock-text transition-colors"
-                      >
-                        <RotateCcw className="h-3 w-3" />
-                        Reset Starter
-                      </button>
+                      <div className="flex items-center gap-3">
+                        <a
+                          href={`/lessons/${lessonId}/coding/${ex.id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-indigo-300 hover:text-white transition-colors font-semibold"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                          Open in New Page
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setCodeInputs((p) => ({
+                              ...p,
+                              [ex.id]: ex.starter_code || ex.buggy_code || '',
+                            }))
+                          }
+                          className="inline-flex items-center gap-1 text-codeblock-muted hover:text-codeblock-text transition-colors"
+                        >
+                          <RotateCcw className="h-3 w-3" />
+                          Reset Starter
+                        </button>
+                      </div>
                     </div>
                     <textarea
                       rows={9}

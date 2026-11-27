@@ -76,16 +76,17 @@ class ContentAgent:
     def _derive_prerequisites(domain: str, difficulty: str) -> List[str]:
         """Derive sensible course-level prerequisites from subject domain & difficulty."""
         diff = (difficulty or "intermediate").lower()
+        domain_label = domain.replace("_", " ").strip() or "the subject"
         if diff == "beginner":
-            return ["Basic computer literacy and curiosity to learn", "No prior domain expertise required"]
+            return [f"No prior {domain_label} expertise required", "Willingness to follow step-by-step worked examples"]
         if domain == "computer_science":
             return [
-                "Working familiarity with programming syntax and variables",
-                "Basic understanding of command-line tools and HTTP concepts",
+                "Working familiarity with programming syntax, functions, and data structures",
+                "Comfort reading and running code examples from the command line",
             ]
         if domain == "mathematics":
             return ["Foundational algebra and symbolic notation fluency"]
-        return [f"Introductory familiarity with {domain.replace('_', ' ')} fundamentals"]
+        return [f"Introductory familiarity with {domain_label} fundamentals"]
 
     @classmethod
     def _build_chapters_from_sections(
@@ -366,7 +367,7 @@ class ContentAgent:
                 and p_end_lbl.isdigit()
                 and int(p_end_lbl) > int(p_start_lbl)
             ):
-                g_end = max(g_end, g_start + (int(p_end_lbl) - int(p_start_lbl)))
+                g_end = min(s3_end, max(g_end, g_start + (int(p_end_lbl) - int(p_start_lbl))))
             elif i >= len(rest) and s3_end and s3_end > g_end and (s3_end - g_start) <= 3:
                 g_end = s3_end
             else:

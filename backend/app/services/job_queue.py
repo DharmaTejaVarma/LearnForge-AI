@@ -98,11 +98,13 @@ class LessonJobService:
     _active_lesson_ids: Set[int] = set()
     _on_demand_waiting: int = 0
     _paused_courses: Set[int] = set()
+    _heartbeats: Dict[int, str] = {}
 
     @classmethod
     def _get_worker_sem(cls) -> asyncio.Semaphore:
         if cls._worker_sem is None:
-            cls._worker_sem = asyncio.Semaphore(1)
+            from app.ai.models.model_router import model_router
+            cls._worker_sem = asyncio.Semaphore(1 if model_router.is_local_only() else 2)
         return cls._worker_sem
 
     @classmethod
@@ -139,7 +141,7 @@ class LessonJobService:
         if job.lesson_id in cls._active_lesson_ids:
             return
         metrics = dict(job.metrics or {})
-        hb_str = metrics.get("heartbeat_at") or job.started_at
+        hb_str = cls._heartbeats.get(job.id) or metrics.get("heartbeat_at") or job.started_at
         if not hb_str:
             return
         try:
@@ -421,8 +423,8 @@ class LessonJobService:
             requeued += 1
         await db.commit()
 
-        if failed_lessons:
-            await cls.enqueue_lesson_job(course_id, failed_lessons[0].id, user_id, job_type="on_demand")
+        for l in failed_lessons:
+            await cls.enqueue_lesson_job(course_id, l.id, user_id, job_type="prefetch")
         return {"course_id": course_id, "requeued_lessons": requeued}
 
     @classmethod
@@ -515,24 +517,17 @@ class LessonJobService:
 
         async def _heartbeat_loop(stop_evt: asyncio.Event) -> None:
             while not stop_evt.is_set():
+                cls._heartbeats[job_id] = _utcnow_iso()
                 try:
                     await asyncio.sleep(3.0)
-                    if stop_evt.is_set():
-                        break
-                    async with AsyncSessionLocal() as hb_sess:
-                        job = await hb_sess.get(LessonGenerationJob, job_id)
-                        if job and job.status in ACTIVE_JOB_STATES:
-                            m = dict(job.metrics or {})
-                            m["heartbeat_at"] = _utcnow_iso()
-                            job.metrics = m
-                            await hb_sess.commit()
-                except Exception:
-                    pass
+                except asyncio.CancelledError:
+                    break
 
         async def _execute() -> None:
             from app.services.course_service import CourseService, _get_lesson_lock
             max_retries = 2
             is_on_demand = job_type == "on_demand"
+            waiting_decremented = False
             if is_on_demand:
                 cls._on_demand_waiting += 1
             stop_hb = asyncio.Event()
@@ -543,8 +538,9 @@ class LessonJobService:
                         await asyncio.sleep(0.1)
                 await cls._set_job_stage(job_id, "WAITING_FOR_WORKER", "Waiting for worker")
                 async with cls._get_worker_sem():
-                    if is_on_demand and cls._on_demand_waiting > 0:
+                    if is_on_demand and not waiting_decremented and cls._on_demand_waiting > 0:
                         cls._on_demand_waiting -= 1
+                        waiting_decremented = True
                     for attempt in range(max_retries + 1):
                         try:
                             async def _stage_cb(st_code: str, st_label: str) -> None:
@@ -650,8 +646,10 @@ class LessonJobService:
                 stop_hb.set()
                 if not hb_task.done():
                     hb_task.cancel()
-                if is_on_demand and cls._on_demand_waiting > 0:
+                cls._heartbeats.pop(job_id, None)
+                if is_on_demand and not waiting_decremented and cls._on_demand_waiting > 0:
                     cls._on_demand_waiting -= 1
+                    waiting_decremented = True
                 cls._active_lesson_ids.discard(lesson_id)
                 cls._running_tasks.pop(lesson_id, None)
 
@@ -660,6 +658,17 @@ class LessonJobService:
 
     @classmethod
     async def cancel_lesson_job(cls, db: AsyncSession, user_id: int, lesson_id: int) -> Dict[str, Any]:
+        # Verify lesson ownership before cancelling any task or mutating Lesson state
+        own_res = await db.execute(
+            select(Lesson)
+            .join(Topic, Lesson.topic_id == Topic.id)
+            .join(Chapter, Topic.chapter_id == Chapter.id)
+            .join(Course, Chapter.course_id == Course.id)
+            .where(Lesson.id == lesson_id, Course.user_id == user_id)
+        )
+        row = own_res.scalars().first()
+        if not row:
+            raise NotFoundException("Lesson not found")
         task = cls._running_tasks.get(lesson_id)
         if task and not task.done():
             task.cancel()
@@ -672,8 +681,7 @@ class LessonJobService:
             )
             .values(status="CANCELLED", current_stage="Cancelled by user", completed_at=_utcnow_iso())
         )
-        row = await db.get(Lesson, lesson_id)
-        if row and row.generation_status != "ready":
+        if row.generation_status != "ready":
             row.generation_status = "queued"
         await db.commit()
         return {"lesson_id": lesson_id, "status": "CANCELLED"}

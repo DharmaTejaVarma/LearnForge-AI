@@ -1,5 +1,16 @@
+from pathlib import Path
 from typing import List
+from dotenv import dotenv_values
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Ensure non-empty values in backend/.env override stale local shell/OS env vars
+for _env_candidate in (Path(".env"), Path("backend/.env"), Path(__file__).resolve().parents[2] / ".env"):
+    if _env_candidate.exists():
+        for _k, _v in dotenv_values(_env_candidate).items():
+            if _v is not None:
+                import os as _os
+                _os.environ[_k] = _v
+        break
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "LearnForge AI"
@@ -31,9 +42,9 @@ class Settings(BaseSettings):
     
     OPENAI_API_KEY: str = ""
     GROQ_API_KEY: str = ""
-    GROQ_MODEL: str = "llama-3.3-70b-versatile"
+    GROQ_MODEL: str = "qwen/qwen3.8-27b"
     GEMINI_API_KEY: str = ""
-    GEMINI_MODEL: str = "gemini-2.0-flash"
+    GEMINI_MODEL: str = "gemini-3.8-flash"
     OPENROUTER_API_KEY: str = ""
     OPENROUTER_MODEL: str = "meta-llama/llama-3.3-70b-instruct:free"
     DEFAULT_MODEL: str = "gpt-4o-mini"

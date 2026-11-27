@@ -154,6 +154,7 @@ class CourseGenerateRequest(BaseModel):
     document_id: int
     difficulty_level: Optional[str] = "intermediate"
     target_chapters_count: Optional[int] = Field(default=18, ge=1, le=24)
+    prevent_duplicate: bool = False
 
 class CourseResponse(CourseBase):
     id: int

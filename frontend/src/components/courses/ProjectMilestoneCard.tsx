@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ProjectStepData, CodeRunResult, courseService } from '../../services/courseService';
-import { Rocket, CheckCircle2, Copy, Check, RotateCcw, Play, Lightbulb, ChevronDown, ChevronUp } from 'lucide-react';
+import { Rocket, CheckCircle2, Copy, Check, RotateCcw, Play, Lightbulb, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react';
 import { Button } from '../common/Button';
 
 interface ProjectMilestoneCardProps {
@@ -88,18 +88,29 @@ export const ProjectMilestoneCard: React.FC<ProjectMilestoneCardProps> = ({
           </h3>
         </div>
 
-        <button
-          type="button"
-          onClick={toggleDone}
-          className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold border transition-all self-start ${
-            done
-              ? 'bg-status-success-bg border-status-success-border text-status-success-text'
-              : 'bg-surface border-line text-ink-primary hover:border-brand-soft-border'
-          }`}
-        >
-          <CheckCircle2 className="h-4 w-4" />
-          <span>{done ? 'Milestone Completed' : 'Mark Milestone Applied'}</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-2 self-start">
+          <a
+            href={`/lessons/${lessonId}/project`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border border-brand-soft-border bg-brand-soft text-brand hover:bg-brand hover:text-white transition-all"
+          >
+            <ExternalLink className="h-3.5 w-3.5" />
+            <span>Open in New Page</span>
+          </a>
+          <button
+            type="button"
+            onClick={toggleDone}
+            className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold border transition-all ${
+              done
+                ? 'bg-status-success-bg border-status-success-border text-status-success-text'
+                : 'bg-surface border-line text-ink-primary hover:border-brand-soft-border'
+            }`}
+          >
+            <CheckCircle2 className="h-4 w-4" />
+            <span>{done ? 'Milestone Completed' : 'Mark Milestone Applied'}</span>
+          </button>
+        </div>
       </div>
 
       {projectStep.learning_objective && (
@@ -126,7 +137,7 @@ export const ProjectMilestoneCard: React.FC<ProjectMilestoneCardProps> = ({
         <div className="rounded-[12px] border border-codeblock-border bg-codeblock-bg overflow-hidden shadow-card">
           <div className="flex items-center justify-between px-3.5 py-2 bg-codeblock-header border-b border-codeblock-border text-xs">
             <span className="font-mono text-indigo-300 font-semibold">
-              creature_api_step_{projectStep.step_number}.py
+              project_step_{projectStep.step_number}.py
             </span>
             <div className="flex items-center gap-3">
               <button

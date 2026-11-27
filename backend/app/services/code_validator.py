@@ -54,14 +54,24 @@ class _ScopeAnalyzer(ast.NodeVisitor):
 
     def __init__(self) -> None:
         self.scopes: List[Set[str]] = [set(_BUILTIN_NAMES)]
+        self.class_scope_depths: Set[int] = set()
+        self.has_star_import: bool = False
         self.undefined: List[str] = []
 
-    def _define(self, name: str) -> None:
+    def _define(self, name: Optional[str]) -> None:
         if name:
             self.scopes[-1].add(name)
 
     def _is_defined(self, name: str) -> bool:
-        return any(name in scope for scope in reversed(self.scopes))
+        if self.has_star_import:
+            return True
+        top_idx = len(self.scopes) - 1
+        for idx in range(top_idx, -1, -1):
+            if idx in self.class_scope_depths and idx < top_idx:
+                continue
+            if name in self.scopes[idx]:
+                return True
+        return False
 
     def _collect_target(self, target: ast.AST) -> None:
         if isinstance(target, ast.Name):
@@ -101,7 +111,9 @@ class _ScopeAnalyzer(ast.NodeVisitor):
 
     def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
         for alias in node.names:
-            if alias.name != "*":
+            if alias.name == "*":
+                self.has_star_import = True
+            else:
                 self._define(alias.asname or alias.name)
 
     def visit_Global(self, node: ast.Global) -> None:
@@ -130,7 +142,12 @@ class _ScopeAnalyzer(ast.NodeVisitor):
 
     def visit_AugAssign(self, node: ast.AugAssign) -> None:
         self.visit(node.value)
-        self.visit(node.target)
+        if isinstance(node.target, ast.Name):
+            if not self._is_defined(node.target.id):
+                if node.target.id not in self.undefined:
+                    self.undefined.append(node.target.id)
+        else:
+            self.visit(node.target)
         self._collect_target(node.target)
 
     def visit_NamedExpr(self, node: ast.NamedExpr) -> None:
@@ -184,9 +201,12 @@ class _ScopeAnalyzer(ast.NodeVisitor):
         for kw in node.keywords:
             self.visit(kw.value)
         self._define(node.name)
+        depth = len(self.scopes)
         self.scopes.append(set())
+        self.class_scope_depths.add(depth)
         for stmt in node.body:
             self.visit(stmt)
+        self.class_scope_depths.discard(depth)
         self.scopes.pop()
 
     def _visit_func(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
@@ -350,7 +370,21 @@ class CodeValidationPipeline:
 
         # 4. Isolated subprocess sandbox check (when sandbox-allowed imports)
         if run_in_sandbox:
-            sandbox_allowed, _ = validate_python_code(cleaned)
+            sandbox_allowed, sandbox_reason = validate_python_code(cleaned)
+            if not sandbox_allowed and sandbox_reason:
+                reason_low = sandbox_reason.lower()
+                # Reject security/blocked calls (eval/exec/os/subprocess); only bypass sandbox for web/DB framework imports
+                if any(tok in reason_low for tok in ("prohibited", "blocked", "forbidden", "unsafe", "syntax")):
+                    return CodeValidationResult(
+                        valid=False,
+                        syntax_ok=True,
+                        undefined_names=[],
+                        runtime_ok=False,
+                        error_message=sandbox_reason,
+                        compile_ok=True,
+                        scope_ok=True,
+                        final_accepted=False,
+                    )
             if sandbox_allowed:
                 res = execute_python_sandbox(cleaned, test_cases=[], timeout_seconds=3)
                 stdout = res.get("stdout", "")
@@ -432,15 +466,15 @@ class CodeValidationPipeline:
             try:
                 res = await model_router.generate(
                     prompt=repair_prompt,
-                    task_type="summary",
+                    task_type="lesson_content",
                     temperature=0.1,
                     max_tokens=320,
                 )
                 raw = (res.get("content") or "").strip()
-                m = re.search(r"```(?:python)?\n(.*?)```", raw, flags=re.DOTALL)
+                m = re.search(r"```(?:python)?[ \t]*\r?\n(.*?)```", raw, flags=re.DOTALL)
                 candidate = (m.group(1) if m else raw).strip()
                 if candidate:
-                    check = cls.validate_code_block(candidate)
+                    check = cls.validate_code_block(candidate, run_in_sandbox=False)
                     if check.valid:
                         check.repaired = True
                         check.final_accepted = True
@@ -452,3 +486,59 @@ class CodeValidationPipeline:
                 break
 
         return current, result
+
+    @classmethod
+    def validate_technical_claims(
+        cls,
+        content: str,
+        domain: str = "general",
+        source_text: str = "",
+    ) -> Dict[str, Any]:
+        """Validate Python/framework imports, deprecated APIs, and technical accuracy metadata."""
+        import sys
+        py_ver = f"{sys.version_info.major}.{sys.version_info.minor}"
+        code_blocks = re.findall(r"```python[ \t]*\r?\n(.*?)```", content or "", flags=re.DOTALL)
+        checked_imports: List[str] = []
+        deprecated_warnings: List[str] = []
+        syntax_errors: List[str] = []
+
+        deprecated_patterns = [
+            (r"\.dict\s*\(", "Pydantic v1 `.dict()` is deprecated in Pydantic v2; use `.model_dump()`."),
+            (r"\.parse_obj\s*\(", "Pydantic v1 `.parse_obj()` is deprecated in Pydantic v2; use `.model_validate()`."),
+            (r"@validator\b", "Pydantic v1 `@validator` is deprecated in Pydantic v2; use `@field_validator`."),
+            (r"\borm_mode\s*=\s*True", "Pydantic v1 `orm_mode = True` is replaced by `model_config = ConfigDict(from_attributes=True)` in v2."),
+            (r"@app\.on_event\s*\(", "FastAPI `@app.on_event` is deprecated in modern FastAPI; prefer `lifespan` async context manager."),
+            (r"from\s+pydantic\s+import\s+[^\n]*\bBaseSettings\b", "`BaseSettings` moved from `pydantic` to `pydantic_settings` in Pydantic v2."),
+        ]
+
+        for blk in code_blocks:
+            if "```" in blk or not blk.strip():
+                continue
+            try:
+                tree = ast.parse(blk)
+                for node in ast.walk(tree):
+                    if isinstance(node, ast.Import):
+                        for a in node.names:
+                            checked_imports.append(a.name.split(".")[0])
+                    elif isinstance(node, ast.ImportFrom) and node.module:
+                        checked_imports.append(node.module.split(".")[0])
+            except SyntaxError as exc:
+                syntax_errors.append(f"Line {exc.lineno}: {exc.msg}")
+            for pat, msg in deprecated_patterns:
+                if re.search(pat, blk) and msg not in deprecated_warnings:
+                    deprecated_warnings.append(msg)
+
+        if domain == "computer_science" and content:
+            if "on_event" in content and "lifespan" not in content.lower():
+                w = "FastAPI `@app.on_event` is deprecated in modern FastAPI; prefer `lifespan` async context manager."
+                if w not in deprecated_warnings:
+                    deprecated_warnings.append(w)
+
+        return {
+            "python_version": py_ver,
+            "checked_imports": sorted(set(checked_imports)),
+            "deprecated_warnings": deprecated_warnings,
+            "syntax_errors": syntax_errors,
+            "technical_accuracy_ok": len(syntax_errors) == 0,
+            "reference_versions": {"python": py_ver, "pydantic": "v2", "fastapi": "0.110+"},
+        }

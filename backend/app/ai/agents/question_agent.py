@@ -188,16 +188,22 @@ class QuestionAgent:
                     "difficulty": difficulty,
                 }
             else:
-                correct_opt = f"A. {def_body[:95].rstrip('.')}."
+                correct_text = f"{def_body[:95].rstrip('.')}."
+                raw_opts = [
+                    correct_text,
+                    f"It operates independently without interacting with '{term}'.",
+                    "It is an unrelated mechanism excluded from this topic.",
+                    "It prevents structured processing within this domain.",
+                ]
+                shift = idx % len(raw_opts)
+                rotated = raw_opts[shift:] + raw_opts[:shift]
+                labels = ("A", "B", "C", "D")
+                labeled_opts = [f"{labels[i]}. {txt}" for i, txt in enumerate(rotated)]
+                correct_opt = labeled_opts[rotated.index(correct_text)]
                 q = {
                     "question_text": f"Which statement accurately describes '{term}' in the study material?",
                     "question_type": "mcq",
-                    "options": [
-                        correct_opt,
-                        f"B. It operates independently without interacting with '{term}'.",
-                        "C. It is an unrelated mechanism excluded from this topic.",
-                        "D. It prevents structured processing within this domain.",
-                    ],
+                    "options": labeled_opts,
                     "correct_answer": correct_opt,
                     "explanation": f"In the study material: {s[:160]}",
                     "difficulty": difficulty,

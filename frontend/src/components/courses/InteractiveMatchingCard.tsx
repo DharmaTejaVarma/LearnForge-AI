@@ -5,34 +5,79 @@ import { Button } from '../common/Button';
 
 interface InteractiveMatchingCardProps {
   matching: MatchingExerciseData;
+  lessonId?: number;
 }
 
-export const InteractiveMatchingCard: React.FC<InteractiveMatchingCardProps> = ({ matching }) => {
+export const InteractiveMatchingCard: React.FC<InteractiveMatchingCardProps> = ({ matching, lessonId }) => {
   const pairs = matching.pairs || [];
+  const storageKey = lessonId ? `learnforge_matching_${lessonId}` : null;
 
   const shuffledDescriptions = useMemo(() => {
     const items = pairs.map((p) => ({ id: p.id, description: p.description }));
     if (items.length <= 1) return items;
-    return [...items.slice(1), items[0]];
+    // Fisher-Yates shuffle seeded deterministically per pair set so order is genuinely mixed
+    const arr = [...items];
+    let seed = pairs.reduce((acc, p) => acc + p.term.length * 31, 17);
+    for (let i = arr.length - 1; i > 0; i--) {
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+      const j = seed % (i + 1);
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    if (arr.every((d, i) => d.id === items[i].id) && arr.length > 1) {
+      [arr[0], arr[1]] = [arr[1], arr[0]];
+    }
+    return arr;
   }, [pairs]);
 
   const [selectedTermId, setSelectedTermId] = useState<string | null>(null);
-  const [matches, setMatches] = useState<Record<string, string>>({});
-  const [checked, setChecked] = useState<boolean>(false);
+  const [matches, setMatches] = useState<Record<string, string>>(() => {
+    if (!storageKey) return {};
+    try {
+      const raw = localStorage.getItem(storageKey);
+      return raw ? JSON.parse(raw).matches || {} : {};
+    } catch {
+      return {};
+    }
+  });
+  const [checked, setChecked] = useState<boolean>(() => {
+    if (!storageKey) return false;
+    try {
+      const raw = localStorage.getItem(storageKey);
+      return raw ? Boolean(JSON.parse(raw).checked) : false;
+    } catch {
+      return false;
+    }
+  });
 
   if (pairs.length === 0) return null;
 
+  const persistMatching = (nextMatches: Record<string, string>, nextChecked: boolean) => {
+    if (!storageKey) return;
+    try {
+      localStorage.setItem(storageKey, JSON.stringify({ matches: nextMatches, checked: nextChecked }));
+    } catch {
+      // ignore
+    }
+  };
+
   const handleSelectDescription = (descId: string) => {
     if (!selectedTermId) return;
-    setMatches((prev) => ({ ...prev, [selectedTermId]: descId }));
+    const next: Record<string, string> = {};
+    for (const [k, v] of Object.entries(matches)) {
+      if (v !== descId) next[k] = v;
+    }
+    next[selectedTermId] = descId;
+    setMatches(next);
     setSelectedTermId(null);
     setChecked(false);
+    persistMatching(next, false);
   };
 
   const reset = () => {
     setMatches({});
     setSelectedTermId(null);
     setChecked(false);
+    persistMatching({}, false);
   };
 
   const correctCount = pairs.filter((p) => matches[p.id] === p.id).length;
@@ -65,7 +110,10 @@ export const InteractiveMatchingCard: React.FC<InteractiveMatchingCardProps> = (
             variant="primary"
             size="sm"
             disabled={!allAssigned}
-            onClick={() => setChecked(true)}
+            onClick={() => {
+              setChecked(true);
+              persistMatching(matches, true);
+            }}
           >
             Check Matches
           </Button>
@@ -121,6 +169,8 @@ export const InteractiveMatchingCard: React.FC<InteractiveMatchingCardProps> = (
           {shuffledDescriptions.map((d, idx) => {
             const letter = String.fromCharCode(65 + idx);
             const assignedTo = Object.entries(matches).find(([, v]) => v === d.id)?.[0];
+            const descCorrect = checked && assignedTo === d.id;
+            const descWrong = checked && assignedTo && assignedTo !== d.id;
             return (
               <button
                 key={d.id}
@@ -128,7 +178,11 @@ export const InteractiveMatchingCard: React.FC<InteractiveMatchingCardProps> = (
                 onClick={() => handleSelectDescription(d.id)}
                 disabled={!selectedTermId}
                 className={`w-full text-left p-3 rounded-[10px] border text-xs md:text-sm transition-all ${
-                  selectedTermId
+                  descCorrect
+                    ? 'bg-status-success-bg border-status-success-border text-status-success-text'
+                    : descWrong
+                    ? 'bg-status-danger-bg border-status-danger-border text-status-danger-text'
+                    : selectedTermId
                     ? 'bg-surface border-brand-soft-border hover:bg-hoverbg text-ink-primary cursor-pointer'
                     : 'bg-surface border-line text-ink-secondary cursor-default'
                 }`}

@@ -52,9 +52,23 @@ export const Courses: React.FC = () => {
     loadData();
   }, []);
 
+  const duplicateCourse = selectedDocId
+    ? courses.find(
+        (c) =>
+          c.document_id === selectedDocId &&
+          (c.difficulty_level || 'intermediate').toLowerCase() === selectedDifficulty.toLowerCase(),
+      )
+    : undefined;
+
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedDocId) return;
+    if (duplicateCourse) {
+      setErrorMessage(
+        `A course for this document and "${selectedDifficulty}" difficulty already exists ("${duplicateCourse.title}").`,
+      );
+      return;
+    }
 
     setIsGenerating(true);
     setErrorMessage(null);
@@ -237,10 +251,28 @@ export const Courses: React.FC = () => {
               </p>
             </div>
 
-            {errorMessage && (
-              <div className="p-3 rounded-[10px] bg-status-danger-bg border border-status-danger-border text-status-danger-text text-xs flex items-center gap-2">
-                <AlertCircle className="h-4 w-4 shrink-0" />
-                <span>{errorMessage}</span>
+            {(errorMessage || duplicateCourse) && (
+              <div className="p-3 rounded-[10px] bg-status-warning-bg border border-status-warning-border text-status-warning-text text-xs space-y-2">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                  <span>
+                    {errorMessage ||
+                      `A course with this document and "${selectedDifficulty}" difficulty already exists ("${duplicateCourse?.title}"). Change the difficulty/document or open the existing course.`}
+                  </span>
+                </div>
+                {duplicateCourse && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setShowModal(false);
+                      navigate(`/courses/${duplicateCourse.id}`);
+                    }}
+                  >
+                    Open Existing Course
+                  </Button>
+                )}
               </div>
             )}
 
@@ -308,6 +340,7 @@ export const Courses: React.FC = () => {
                   variant="primary"
                   type="submit"
                   isLoading={isGenerating}
+                  disabled={Boolean(duplicateCourse)}
                   icon={<Sparkles className="h-4 w-4" />}
                 >
                   {isGenerating ? 'Synthesizing...' : 'Start Synthesis'}

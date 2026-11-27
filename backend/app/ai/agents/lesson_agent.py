@@ -17,6 +17,7 @@ from typing import Any, Dict, List, Optional
 
 from app.ai.agents.interactive_builder import InteractiveLearningBuilder
 from app.ai.models.model_router import model_router
+from app.core.config import settings
 from app.core.logging import logger
 from app.core.sanitizer import EducationalSanitizer
 from app.services.code_validator import CodeValidationPipeline
@@ -70,10 +71,20 @@ class LessonAgent:
         else:
             pages_range = "Course Source Material"
 
-        # Extract compact structured notes when cloud model is active
+        # Extract compact structured notes only when a non-OTPM-capped cloud model is active
         notes_json: Dict[str, Any] = {}
-        if source_text.strip() and not model_router.is_local_only():
+        if source_text.strip() and not model_router.is_local_only() and not settings.GROQ_API_KEY:
             notes_json = await cls._extract_notes(source_text, topic_title, domain)
+
+        # Build deterministic source-grounded Lesson Knowledge Map (0 extra LLM calls)
+        knowledge_map = cls._build_knowledge_map(
+            topic_title=topic_title,
+            chapter_title=chapter_title,
+            source_text=source_text,
+            subtopics=subtopics or [],
+            domain=domain,
+            notes=notes_json,
+        )
 
         t_inf_start = time.perf_counter()
         content, error, provider_used = await cls._write_lesson(
@@ -87,6 +98,7 @@ class LessonAgent:
             content_type=content_type,
             pages_range=pages_range,
             subtopics=subtopics or [],
+            knowledge_map=knowledge_map,
         )
         inference_ms = round((time.perf_counter() - t_inf_start) * 1000, 1)
 
@@ -118,13 +130,14 @@ class LessonAgent:
             subtopics=subtopics or [],
         )
 
-        # Validate Python code blocks (AST + undefined identifiers + isolated sandbox) with targeted single-block repair
+        # Validate Python code blocks (AST + undefined identifiers; skip slow subprocess sandbox in fast Groq mode)
         code_blocks = re.findall(r"```python\n(.*?)```", content, flags=re.DOTALL)
         if code_blocks and (domain == "computer_science" or content_type == "programming"):
+            use_sandbox = not bool(settings.GROQ_API_KEY)
             for blk in code_blocks:
                 if "```" in blk or not blk.strip():
                     continue
-                chk = CodeValidationPipeline.validate_code_block(blk, run_in_sandbox=True)
+                chk = CodeValidationPipeline.validate_code_block(blk, run_in_sandbox=use_sandbox)
                 if not chk.valid:
                     repaired, rep_chk = await CodeValidationPipeline.repair_code_block(
                         blk, chk.error_message or "Validation failed", topic_title, max_attempts=1
@@ -134,20 +147,29 @@ class LessonAgent:
                         validation_checks["python_syntax_valid"] = True
                         validation_checks["code_repaired"] = True
 
+        tech_validation = CodeValidationPipeline.validate_technical_claims(
+            content=content,
+            domain=domain,
+            source_text=source_text,
+        )
+        objectives = cls._extract_objectives(content, topic_title)
+
         eval_report = LessonEvaluator.evaluate(
             topic_title=topic_title,
             lesson_content=content,
             source_text=source_text,
             subtopics=subtopics or [],
+            learning_objectives=objectives,
+            technical_validation=tech_validation,
         )
         validation_ms = round((time.perf_counter() - t_val_start) * 1000, 1)
 
         summary = cls._extract_summary(content, topic_title)
         takeaways = cls._extract_takeaways(content)
-        objectives = cls._extract_objectives(content, topic_title)
         word_count = len(content.split())
 
         structured_sections = cls._extract_structured_sections(content)
+        structured_sections["knowledge_map"] = knowledge_map
         interactive = InteractiveLearningBuilder.build(
             topic_title=topic_title,
             chapter_title=chapter_title,
@@ -157,6 +179,7 @@ class LessonAgent:
             subtopics=subtopics or [],
             chapter_order=chapter_order,
             domain=domain,
+            knowledge_map=knowledge_map,
         )
         structured_sections.update(interactive)
         structured_sections["subtopics"] = subtopics or []
@@ -191,8 +214,9 @@ class LessonAgent:
             "model_used": provider_used,
             "source_pages": source_pages,
             "printed_pages": resolved_printed,
-            "validation_passed": validation_checks.get("passed", True),
+            "validation_passed": validation_checks.get("passed", True) and tech_validation.get("technical_accuracy_ok", True),
             "validation_checks": validation_checks,
+            "technical_validation": tech_validation,
         }
         structured_sections["quality_evaluation"] = eval_report
 
@@ -261,6 +285,69 @@ class LessonAgent:
             return {}
 
     @classmethod
+    def _build_knowledge_map(
+        cls,
+        topic_title: str,
+        chapter_title: str,
+        source_text: str,
+        subtopics: List[str],
+        domain: str,
+        notes: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Deterministically extract concepts, terminology, and code patterns from source_text."""
+        concepts: List[Dict[str, str]] = []
+        terminology: List[str] = []
+        seen_terms = set()
+
+        if notes:
+            for c in (notes.get("key_concepts") or [])[:6]:
+                term = str(c.get("term") or "").strip()
+                expl = str(c.get("explanation") or "").strip()
+                if term and expl and term.lower() not in seen_terms:
+                    seen_terms.add(term.lower())
+                    concepts.append({"term": term, "definition": expl})
+                    terminology.append(term)
+
+        # Extract Backticked/CamelCase/Capitalized terms and definitional sentences from source_text
+        if source_text:
+            sentences = re.split(r"(?<=[.!?])\s+", source_text.strip())
+            def_patterns = [
+                re.compile(r"^([A-Z][A-Za-z0-9_:/\-\s]{2,38}?)\s+(?:is|are|refers to|represents|means|provides|allows)\s+([^.!?]{15,160}[.!?])"),
+                re.compile(r"`([A-Za-z0-9_.\-/]{2,32})`"),
+            ]
+            for sent in sentences[:60]:
+                s_clean = " ".join(sent.split()).strip()
+                if len(s_clean) < 20 or len(s_clean) > 220:
+                    continue
+                m = def_patterns[0].match(s_clean)
+                if m:
+                    term = m.group(1).strip(" :-")
+                    if term.lower() not in seen_terms and len(term.split()) <= 5:
+                        seen_terms.add(term.lower())
+                        concepts.append({"term": term, "definition": s_clean})
+                        terminology.append(term)
+                if len(concepts) >= 6:
+                    break
+
+        for sub in (subtopics or [])[:6]:
+            s_clean = sub.strip()
+            if s_clean and s_clean.lower() not in seen_terms:
+                seen_terms.add(s_clean.lower())
+                terminology.append(s_clean)
+
+        code_patterns = re.findall(r"(?:from\s+\S+\s+import\s+\S+|def\s+\w+\(|class\s+\w+|@\w+\.\w+)", source_text or "")[:6]
+        return {
+            "topic": topic_title,
+            "chapter": chapter_title,
+            "domain": domain,
+            "concepts": concepts[:6],
+            "terminology": terminology[:10],
+            "subtopics": list(subtopics or []),
+            "code_patterns": list(dict.fromkeys(code_patterns)),
+            "prerequisites": (notes or {}).get("prerequisites") or [f"Prior concepts from {chapter_title}"],
+        }
+
+    @classmethod
     async def _write_lesson(
         cls,
         topic_title: str,
@@ -273,6 +360,7 @@ class LessonAgent:
         content_type: str,
         pages_range: str,
         subtopics: List[str],
+        knowledge_map: Optional[Dict[str, Any]] = None,
     ) -> tuple[str, Optional[str], str]:
         """Write a complete, source-grounded lesson. Returns (content, error_message, provider_used)."""
         notes_summary = ""
@@ -320,10 +408,10 @@ class LessonAgent:
                 "('Imagine a city...'), no filenames. Tag sections with [SOURCE-BASED] or [SUPPLEMENTARY EXPLANATION]. "
                 "Put Python code ONLY inside ```python fences and sample output in plain ``` fences."
             )
-            source_limit = 1800
-            target_tokens = 580
+            source_limit = 1400
+            target_tokens = 450
             max_attempts = 1
-            min_words_accept = 120
+            min_words_accept = 110
             prompt = (
                 f"Teach **{topic_title}** (Module: {chapter_title} | {pages_range} | {difficulty.title()})\n"
                 f"{subtopics_clause}\n"
@@ -348,11 +436,18 @@ class LessonAgent:
                 "4. Never invent behavior that code does not perform, never use undefined external placeholders, and never mention filenames (.pdf, .docx) or 'this book'/'the author'.\n"
                 "5. Complete EVERY section cleanly through Check Your Understanding — never stop mid-sentence or leave unclosed code fences."
             )
-            word_rule = "Write 750-1250 words with rich technical depth, step-by-step traces, and complete examples."
-            source_limit = 4500
-            target_tokens = 2000
-            max_attempts = 2
-            min_words_accept = 120
+            if settings.GROQ_API_KEY:
+                word_rule = "Write 280-380 focused, complete words. Keep code examples short (<=10 lines) so every section finishes cleanly."
+                source_limit = 1400
+                target_tokens = 600
+                max_attempts = 2
+                min_words_accept = 80
+            else:
+                word_rule = "Write 750-1250 words with rich technical depth, step-by-step traces, and complete examples."
+                source_limit = 4500
+                target_tokens = 2000
+                max_attempts = 2
+                min_words_accept = 120
             prompt = (
                 f"Write a comprehensive, technically accurate lesson on: **{topic_title}**\n"
                 f"Course: {course_title} | Module: {chapter_title} | Level: {difficulty.title()} | Source: {pages_range}\n"
@@ -383,6 +478,10 @@ class LessonAgent:
 
         if notes_summary:
             prompt += f"\nExtracted Notes:\n{notes_summary}\n"
+        elif knowledge_map and (knowledge_map.get("terminology") or knowledge_map.get("concepts")):
+            km_terms = ", ".join((knowledge_map.get("terminology") or [])[:8])
+            if km_terms:
+                prompt += f"\nKey Source Terms to Teach: {km_terms}\n"
         if source_text.strip():
             prompt += f"\nSource Material ({pages_range}):\n{source_text[:source_limit]}"
 
@@ -430,41 +529,45 @@ class LessonAgent:
         if last_line and not last_line.startswith("#") and not last_line.endswith((".", "!", "?", "`", ":", ")", "]")):
             cleaned = cleaned.rstrip(",;:- ") + "."
 
-        # 3. Prepend measurable, non-repetitive Learning Objectives when omitted
+        # 3. Prepend measurable, topic-specific Learning Objectives when omitted
         if "## Learning Objectives" not in cleaned:
-            action_verbs = ("Differentiate", "Implement", "Trace", "Configure", "Validate", "Debug")
+            action_verbs = ("Differentiate", "Explain", "Trace", "Apply", "Evaluate")
             obj_items: List[str] = []
             for idx, s in enumerate((subtopics or [])[:3]):
                 verb = action_verbs[idx % len(action_verbs)]
                 obj_items.append(
-                    f"- {verb} how **{s}** operates within **{topic_title}** ({pages_range})."
+                    f"- {verb} how **{s}** works in **{topic_title}** ({pages_range})."
                 )
             if len(obj_items) < 3:
                 defaults = [
-                    f"- Differentiate the core responsibilities and boundaries of **{topic_title}** ({pages_range}).",
-                    f"- Trace a complete input-to-output workflow using **{topic_title}** with concrete examples.",
-                    f"- Diagnose and prevent common implementation pitfalls when applying **{topic_title}**.",
+                    f"- Define the core principles and purpose of **{topic_title}** ({pages_range}).",
+                    f"- Trace a concrete example demonstrating **{topic_title}** step by step.",
+                    f"- Identify and avoid common pitfalls when applying **{topic_title}**.",
                 ]
                 obj_items.extend(defaults[: 3 - len(obj_items)])
             header = f"# {topic_title}\n\n## Learning Objectives\n\n" + "\n".join(obj_items) + "\n\n"
             cleaned = header + cleaned
 
-        # 4. Auto-complete trailing Key Takeaways / Check Your Understanding if local model stopped early after Core Concepts & Example
+        # 4. Auto-complete trailing Key Takeaways / Check Your Understanding from source sentences (avoid repeating Core Concepts verbatim)
         if "## Key Takeaways" not in cleaned:
-            bold_defs = re.findall(r"\*\*([^*]{3,40})\*\*[:\-–]\s*([^\n.]{15,120})", cleaned)
-            bullets = [f"- **{t.strip()}**: {d.strip().rstrip('.')}." for t, d in bold_defs[:4]]
+            src_sents = [
+                " ".join(s.split()).strip()
+                for s in re.split(r"(?<=[.!?])\s+", (source_text or "").strip())
+                if 35 <= len(s.strip()) <= 160
+            ]
+            bullets = [f"- {s.rstrip('.')}." for s in src_sents[:3]]
             if not bullets:
                 bullets = [
-                    f"- **{topic_title}** defines explicit contracts and boundaries covered in {chapter_title} ({pages_range}).",
-                    "- Separating validation, core logic, and error signaling prevents silent runtime failures.",
+                    f"- **{topic_title}** builds directly on the concepts covered in {chapter_title} ({pages_range}).",
                 ]
             cleaned += "\n\n## Key Takeaways\n\n" + "\n".join(bullets)
 
         if "## Check Your Understanding" not in cleaned:
+            focus_term = (subtopics[0] if subtopics else topic_title)
             cleaned += (
                 "\n\n## Check Your Understanding\n\n"
-                f"1. **How does {topic_title} structure inputs and outputs?** By enforcing explicit contracts and clear responsibilities covered in {chapter_title}.\n"
-                f"2. **What mistake should you avoid when applying {topic_title}?** Mixing unrelated concerns or skipping edge-case error checks.\n"
+                f"1. **What problem does {focus_term} solve in {topic_title}?** Review the Core Concepts and Worked Example above.\n"
+                f"2. **What happens if {topic_title} is misapplied?** Check the Common Mistakes section for the root cause and fix.\n"
             )
 
         missing_sections = [
@@ -539,9 +642,11 @@ class LessonAgent:
             lbl = str(p.get("printed_page") or p.get("page_number") or "").strip()
             if lbl and lbl not in labels:
                 labels.append(lbl)
-        if labels:
-            return labels
-        return [str(p) for p in (source_pages or [])]
+        if not labels:
+            labels = [str(p) for p in sorted(set(source_pages or []))]
+        def _sort_key(val: str) -> tuple[int, str]:
+            return (0, f"{int(val):08d}") if val.isdigit() else (1, val)
+        return sorted(set(labels), key=_sort_key)
 
     @staticmethod
     def _extract_structured_sections(content: str) -> Dict[str, Any]:

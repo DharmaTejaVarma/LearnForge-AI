@@ -176,7 +176,7 @@ class OllamaProvider(LLMProvider):
         options = {
             "temperature": temperature,
             "num_predict": max_tokens,
-            "num_ctx": 2048,
+            "num_ctx": 1536,
             "num_thread": self._optimal_threads(),
         }
         if isinstance(prompt, list):

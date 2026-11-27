@@ -14,6 +14,7 @@ const TutorChat = lazy(() => import('../pages/tutor/TutorChat').then((m) => ({ d
 const Flashcards = lazy(() => import('../pages/flashcards/Flashcards').then((m) => ({ default: m.Flashcards })));
 const Quizzes = lazy(() => import('../pages/quizzes/Quizzes').then((m) => ({ default: m.Quizzes })));
 const ProgressView = lazy(() => import('../pages/progress/ProgressView').then((m) => ({ default: m.ProgressView })));
+const CodingWorkspace = lazy(() => import('../pages/courses/CodingWorkspace').then((m) => ({ default: m.CodingWorkspace })));
 
 const PageFallback: React.FC = () => (
   <div className="min-h-[60vh] flex flex-col items-center justify-center gap-3 text-ink-secondary">
@@ -37,6 +38,8 @@ export const AppRoutes: React.FC = () => {
             <Route path="/documents" element={<Documents />} />
             <Route path="/courses" element={<Courses />} />
             <Route path="/courses/:courseId" element={<LessonView />} />
+            <Route path="/lessons/:lessonId/coding/:exerciseId" element={<CodingWorkspace />} />
+            <Route path="/lessons/:lessonId/project" element={<CodingWorkspace />} />
             <Route path="/tutor" element={<TutorChat />} />
             <Route path="/flashcards" element={<Flashcards />} />
             <Route path="/quizzes" element={<Quizzes />} />

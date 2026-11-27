@@ -4,11 +4,35 @@ import { ChevronDown, ChevronRight, Layers, CheckCircle2, XCircle, Sparkles } fr
 
 interface InteractiveConceptDeckProps {
   cards: ConceptCardData[];
+  lessonId?: number;
 }
 
-export const InteractiveConceptDeck: React.FC<InteractiveConceptDeckProps> = ({ cards }) => {
+export const InteractiveConceptDeck: React.FC<InteractiveConceptDeckProps> = ({ cards, lessonId }) => {
+  const storageKey = lessonId ? `learnforge_concept_checks_${lessonId}` : null;
   const [expandedIdx, setExpandedIdx] = useState<number>(0);
-  const [selectedAnswers, setSelectedAnswers] = useState<Record<number, string>>({});
+  const [selectedAnswers, setSelectedAnswers] = useState<Record<number, string>>(() => {
+    if (!storageKey) return {};
+    try {
+      const raw = localStorage.getItem(storageKey);
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const handleSelectQuickCheck = (idx: number, opt: string) => {
+    setSelectedAnswers((prev) => {
+      const next = { ...prev, [idx]: opt };
+      if (storageKey) {
+        try {
+          localStorage.setItem(storageKey, JSON.stringify(next));
+        } catch {
+          // ignore
+        }
+      }
+      return next;
+    });
+  };
 
   if (!cards || cards.length === 0) return null;
 
@@ -109,7 +133,7 @@ export const InteractiveConceptDeck: React.FC<InteractiveConceptDeckProps> = ({ 
                           <button
                             key={oIdx}
                             type="button"
-                            onClick={() => setSelectedAnswers((p) => ({ ...p, [idx]: opt }))}
+                            onClick={() => handleSelectQuickCheck(idx, opt)}
                             className={`text-left px-3.5 py-2.5 rounded-[10px] border text-xs md:text-sm transition-all ${
                               picked === opt
                                 ? opt === qc.correct_answer
@@ -134,8 +158,8 @@ export const InteractiveConceptDeck: React.FC<InteractiveConceptDeckProps> = ({ 
                             <XCircle className="h-4 w-4 shrink-0 mt-0.5" />
                           )}
                           <span>
-                            {isCorrect ? 'Correct! ' : 'Try another option. '}
-                            {isCorrect && qc.explanation}
+                            {isCorrect ? 'Correct! ' : 'Not quite — '}
+                            {qc.explanation || (!isCorrect ? 'try another option.' : '')}
                           </span>
                         </div>
                       )}

@@ -183,6 +183,18 @@ export const Quizzes: React.FC = () => {
     return `${String(mins).padStart(2, '0')}:${String(rem).padStart(2, '0')}`;
   };
 
+  const selectedDoc = documents.find((d) => d.id === selectedDocId);
+  const duplicateQuiz = pastQuizzes.find((q) => {
+    const sameScope =
+      scopeType === 'course'
+        ? q.course_id === selectedCourseId
+        : Boolean(
+            selectedDoc &&
+              q.title.toLowerCase().includes(formatDocumentTitle(selectedDoc.original_filename).toLowerCase()),
+          );
+    return sameScope && q.question_count === questionCount;
+  });
+
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
     const docId = scopeType === 'document' ? selectedDocId : undefined;
@@ -289,6 +301,25 @@ export const Quizzes: React.FC = () => {
           {/* Generation Form */}
           <Card className="p-6 space-y-5">
             <h2 className="lf-heading-card">Generate a New Quiz</h2>
+
+            {duplicateQuiz && (
+              <div className="p-3 rounded-[10px] bg-status-warning-bg border border-status-warning-border text-status-warning-text text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                  <span>
+                    A {difficulty} quiz with {questionCount} questions already exists for this source ({duplicateQuiz.title}).
+                  </span>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleOpenQuiz(duplicateQuiz.id)}
+                >
+                  Open Existing Quiz
+                </Button>
+              </div>
+            )}
 
             <form onSubmit={handleGenerate} className="space-y-4">
               <div>

@@ -16,16 +16,22 @@ STOP_WORDS = {
     "a", "an", "the", "in", "on", "at", "to", "for", "of", "and", "or", "is",
     "are", "was", "were", "what", "how", "why", "who", "which", "explain",
     "tell", "me", "about", "can", "you", "does", "do", "did", "this", "that",
-    "these", "those", "it", "with", "from", "as", "by", "an", "be"
+    "these", "those", "it", "with", "from", "as", "by", "be"
 }
 
 class RAGRetriever:
     """Retrieves context chunks with exact page references, similarity scoring, and user/course scoping."""
 
     @staticmethod
-    def invalidate_cache() -> None:
-        """Clear cached retrieval results (called on document deletion/reindexing)."""
-        _RETRIEVAL_CACHE.clear()
+    def invalidate_cache(document_id: Optional[int] = None) -> None:
+        """Clear cached retrieval results (optionally scoped to a single document_id)."""
+        if document_id is None:
+            _RETRIEVAL_CACHE.clear()
+            return
+        doc_tag = f"|{int(document_id)}|"
+        stale_keys = [k for k in _RETRIEVAL_CACHE if doc_tag in k]
+        for k in stale_keys:
+            _RETRIEVAL_CACHE.pop(k, None)
 
     @staticmethod
     def retrieve(
@@ -36,9 +42,18 @@ class RAGRetriever:
         top_k: int = 4,
         min_similarity: float = 0.22,
     ) -> List[Dict[str, Any]]:
-        cache_key = hashlib.sha256(
-            f"{user_id}|{document_id}|{document_ids}|{top_k}|{min_similarity}|{query.strip().lower()}".encode("utf-8")
+        # Normalize target_ids before building cache key so document_id=1 and document_ids=[1] share cache
+        target_ids: List[int] = []
+        if document_ids:
+            target_ids = sorted({int(did) for did in document_ids if did})
+        elif document_id is not None:
+            target_ids = [int(document_id)]
+
+        ids_tag = ",".join(str(d) for d in target_ids) if target_ids else "all"
+        raw_hash = hashlib.sha256(
+            f"{user_id}|{ids_tag}|{top_k}|{min_similarity}|{query.strip().lower()}".encode("utf-8")
         ).hexdigest()[:24]
+        cache_key = f"{raw_hash}|{'|'.join(str(d) for d in target_ids)}|" if target_ids else raw_hash
         now = time.monotonic()
         cached = _RETRIEVAL_CACHE.get(cache_key)
         if cached and (now - cached[0]) < _RETRIEVAL_CACHE_TTL:
@@ -46,13 +61,6 @@ class RAGRetriever:
 
         collection = VectorStoreManager.get_collection()
         query_embedding = EmbeddingService.embed_query(query)
-
-        # Build metadata filter enforcing user authorization and document/course scoping
-        target_ids = []
-        if document_ids:
-            target_ids = [int(did) for did in document_ids if did]
-        elif document_id is not None:
-            target_ids = [int(document_id)]
 
         if len(target_ids) == 1:
             where_filter = {
@@ -108,10 +116,10 @@ class RAGRetriever:
             raw_filename = meta.get("filename", "")
             display_title = EducationalSanitizer.clean_title(raw_filename)
 
-            # Lexical keyword match ratio for hybrid ranking
+            # Lexical word-boundary match ratio for hybrid ranking
             passage_lower = effective_text.lower()
             if query_terms:
-                hits = sum(1 for term in query_terms if term in passage_lower)
+                hits = sum(1 for term in query_terms if re.search(rf"\b{re.escape(term)}\b", passage_lower))
                 keyword_score = hits / len(query_terms)
             else:
                 keyword_score = semantic_sim
@@ -148,7 +156,8 @@ class RAGRetriever:
         passages.sort(key=lambda p: p["similarity_score"], reverse=True)
         passages = passages[:top_k]
         if len(_RETRIEVAL_CACHE) >= _RETRIEVAL_CACHE_MAX:
-            _RETRIEVAL_CACHE.clear()
+            oldest_key = min(_RETRIEVAL_CACHE, key=lambda k: _RETRIEVAL_CACHE[k][0])
+            _RETRIEVAL_CACHE.pop(oldest_key, None)
         _RETRIEVAL_CACHE[cache_key] = (now, [dict(item) for item in passages])
         logger.info(f"Retrieved {len(passages)} relevant passages for user_id={user_id} (docs={target_ids})")
         return passages
@@ -176,10 +185,11 @@ class RAGRetriever:
             ]
         }
         try:
+            # Fetch a wider window before sorting so earlier pages/chunks aren't arbitrarily dropped
             results = collection.get(
                 where=where_filter,
                 include=["documents", "metadatas"],
-                limit=max_chunks,
+                limit=max(max_chunks * 3, 40),
             )
         except Exception as e:
             logger.warning(f"get_chunks_for_pages error doc={document_id} pages={page_start}-{page_end}: {e}")
@@ -191,10 +201,17 @@ class RAGRetriever:
         chunks = []
         for text, meta in zip(results["documents"], results["metadatas"]):
             clean_text = EducationalSanitizer.sanitize_educational_text(text) or text
+            raw_filename = meta.get("filename", "")
+            page_val = meta.get("page_number")
             chunks.append({
                 "text": clean_text,
                 "document_id": meta.get("document_id"),
-                "page_number": meta.get("page_number", page_start),
+                "filename": raw_filename,
+                "document_title": EducationalSanitizer.clean_title(raw_filename),
+                "page_number": int(page_val) if page_val is not None else page_start,
+                "printed_page": meta.get("printed_page"),
+                "chapter": meta.get("chapter", ""),
+                "section": meta.get("section", ""),
                 "chunk_index": meta.get("chunk_index", 0),
                 "similarity_score": 1.0,
                 "is_relevant": True,
@@ -219,20 +236,15 @@ class RAGRetriever:
         if similarity < min_similarity:
             return False
 
-        # If similarity is sufficiently high, accept
-        if similarity >= 0.40:
-            return True
-
-        # Extract content words from query (min 3 chars, not in stop words)
-        words = re.findall(r"\b[a-zA-Z]{3,}\b", query.lower())
+        # Extract content words from query (min 3 alphanumeric chars, not in stop words)
+        words = re.findall(r"\b[a-zA-Z0-9]{3,}\b", query.lower())
         content_words = [w for w in words if w not in STOP_WORDS]
 
-        if not content_words:
+        if not content_words or similarity >= 0.62:
             return similarity >= min_similarity
 
-        # Check keyword matches in passage
+        # Check word-boundary keyword matches in passage
         passage_lower = passage_text.lower()
-        matches = sum(1 for w in content_words if w in passage_lower)
+        matches = sum(1 for w in content_words if re.search(rf"\b{re.escape(w)}\b", passage_lower))
 
-        # If at least 1 keyword matches and similarity meets threshold
         return matches >= 1 and similarity >= min_similarity

@@ -52,14 +52,18 @@ class ModelRouter:
         }
 
     def is_local_only(self) -> bool:
-        """Return True if no usable cloud provider is configured or quota is exhausted."""
+        """Return True if local-only mode is selected or no usable cloud provider is configured."""
+        if (settings.DEFAULT_LLM_PROVIDER or "").strip().lower() == "local":
+            return True
         if self._cloud_disabled_reason:
             return True
-        api_key = getattr(self.cloud_client, "api_key", "") or ""
-        return not (len(api_key) > 8 and not api_key.startswith("your_"))
+        return len(self.cloud_client._configured_providers()) == 0
 
     async def probe_cloud_once(self) -> None:
-        """Probe OpenAI once on startup so exhausted/invalid keys disable cloud immediately."""
+        """Probe cloud once on startup only when cloud is enabled."""
+        if (settings.DEFAULT_LLM_PROVIDER or "").strip().lower() == "local":
+            self._cloud_disabled_reason = "Local-only free mode enabled (DEFAULT_LLM_PROVIDER=local)"
+            return
         if self._cloud_disabled_reason:
             return
         cloud_status = await self.cloud_client.check_health()

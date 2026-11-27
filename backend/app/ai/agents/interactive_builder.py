@@ -24,13 +24,18 @@ class InteractiveLearningBuilder:
         subtopics: Optional[List[str]] = None,
         chapter_order: int = 0,
         domain: str = "general",
+        knowledge_map: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         sub_list = subtopics or []
-        concept_cards = cls._build_concept_cards(topic_title, chapter_title, lesson_content, source_text, sub_list)
+        concept_cards = cls._build_concept_cards(
+            topic_title, chapter_title, lesson_content, source_text, sub_list, knowledge_map=knowledge_map
+        )
         architecture_diagram = cls._build_architecture_diagram(topic_title, chapter_title, domain)
         simulator = cls._build_simulator(topic_title, chapter_title, domain)
         project_step = cls._build_project_step(topic_title, chapter_title, course_title, chapter_order, domain)
-        matching_exercise = cls._build_matching_exercise(topic_title, chapter_title, concept_cards, domain)
+        matching_exercise = cls._build_matching_exercise(
+            topic_title, chapter_title, concept_cards, domain, knowledge_map=knowledge_map, source_text=source_text
+        )
         return {
             "concept_cards": concept_cards,
             "matching_exercise": matching_exercise,
@@ -46,49 +51,47 @@ class InteractiveLearningBuilder:
         chapter_title: str,
         concept_cards: List[Dict[str, Any]],
         domain: str,
-    ) -> Dict[str, Any]:
+        knowledge_map: Optional[Dict[str, Any]] = None,
+        source_text: str = "",
+    ) -> Optional[Dict[str, Any]]:
         pairs: List[Dict[str, str]] = []
         seen_terms: set[str] = set()
-        for idx, card in enumerate(concept_cards):
-            term = str(card.get("term") or "").strip()
-            desc = str(card.get("what_it_is") or "").strip()
-            if term and desc and term.lower() not in seen_terms:
-                seen_terms.add(term.lower())
-                pairs.append({
-                    "id": f"pair_{idx + 1}",
-                    "term": term,
-                    "description": desc,
-                })
-            if len(pairs) >= 4:
-                break
 
-        fallback_bank = [
-            ("HTTP Request-Response", "Client sends an HTTP request to a URL and waits for a status-coded response."),
-            ("Message Queue", "Distributes each background task to a single competing worker from a pool."),
-            ("Stateless Endpoint", "Processes each request independently without relying on hidden server session state."),
-            ("Pydantic Schema", "Validates incoming JSON payloads and enforces Python type contracts at runtime."),
-        ] if domain == "computer_science" else [
-            (f"{topic_title} Core Principle", f"Defines the foundational rule governing {topic_title}."),
-            ("Input Contract", "Specifies the required inputs and preconditions before execution."),
-            ("Processing Mechanism", f"Transforms inputs into verified outputs within {chapter_title}."),
-            ("Failure Boundary", "Captures edge cases and invalid states before they propagate."),
-        ]
+        def _add_pair(term: str, desc: str, expl: str = "") -> None:
+            t = term.strip()
+            d = desc.strip()
+            if not t or not d or " vs " in t.lower() or t.lower() in seen_terms:
+                return
+            seen_terms.add(t.lower())
+            pairs.append({
+                "id": f"pair_{len(pairs) + 1}",
+                "term": t,
+                "description": d[:180],
+                "explanation": expl or f"'{t}' is defined in {topic_title} as: {d[:140]}",
+            })
 
-        for term, desc in fallback_bank:
-            if len(pairs) >= 4:
+        for card in concept_cards:
+            if len(pairs) >= 6:
                 break
-            if term.lower() not in seen_terms:
-                seen_terms.add(term.lower())
-                pairs.append({
-                    "id": f"pair_{len(pairs) + 1}",
-                    "term": term,
-                    "description": desc,
-                })
+            _add_pair(
+                str(card.get("term") or ""),
+                str(card.get("what_it_is") or ""),
+                str(card.get("difference") or card.get("why_it_exists") or ""),
+            )
+
+        if knowledge_map and len(pairs) < 5:
+            for c in knowledge_map.get("concepts") or []:
+                if len(pairs) >= 6:
+                    break
+                _add_pair(str(c.get("term") or ""), str(c.get("definition") or ""))
+
+        if len(pairs) < 3:
+            return None
 
         return {
             "title": f"Concept Matching: {topic_title}",
             "instructions": "Match each concept on the left with its accurate technical description on the right.",
-            "pairs": pairs,
+            "pairs": pairs[:6],
         }
 
     @classmethod
@@ -99,22 +102,52 @@ class InteractiveLearningBuilder:
         lesson_content: str,
         source_text: str,
         subtopics: List[str],
+        knowledge_map: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         low = f"{topic_title} {chapter_title} {' '.join(subtopics)}".lower()
         cards: List[Dict[str, Any]] = []
 
-        # Extract genuine bold/definition pairs from lesson content + source first
+        # 1. Prioritize concepts actually taught in the lesson & knowledge_map
         extracted_defs = cls._extract_bold_definitions(lesson_content)
+        existing_terms: set[str] = set()
+        for term, desc in extracted_defs:
+            if term.lower() in existing_terms or len(cards) >= 5:
+                continue
+            existing_terms.add(term.lower())
+            cards.append({
+                "term": term,
+                "what_it_is": desc,
+                "why_it_exists": f"Explained in {topic_title} ({chapter_title}) as a core concept.",
+                "how_it_works": f"Used within {topic_title} to structure behavior and enforce predictable rules.",
+                "example": f"See the Worked Example in {topic_title}.",
+                "difference": f"Distinct from other mechanisms in {chapter_title} by its specific role.",
+            })
 
-        # Enrich with structured domain-accurate conceptual comparisons when topic discusses APIs / Web / Concurrency / Layers
-        if any(k in low for k in ("service", "api", "rpc", "messaging", "kinds of api")):
+        if knowledge_map:
+            for c in knowledge_map.get("concepts") or []:
+                term = str(c.get("term") or "").strip()
+                desc = str(c.get("definition") or "").strip()
+                if not term or not desc or term.lower() in existing_terms or len(cards) >= 5:
+                    continue
+                existing_terms.add(term.lower())
+                cards.append({
+                    "term": term,
+                    "what_it_is": desc,
+                    "why_it_exists": f"Directly grounded in the source material for {topic_title}.",
+                    "how_it_works": f"Operates as part of {topic_title} in {chapter_title}.",
+                    "example": f"Applied in the {topic_title} worked example.",
+                    "difference": f"Focused specifically on {term} rather than adjacent topics.",
+                })
+
+        # 2. Enrich ONLY when topic/chapter explicitly teaches these specific concepts
+        if any(k in low for k in ("services and apis", "kinds of api", "pub-sub", "message queue", "rpc", "messaging")):
             cards.extend([
                 {
                     "term": "Library API vs Service API",
                     "what_it_is": "Library APIs are local function/method calls compiled or imported in-process, whereas Service APIs exchange structured messages over a network boundary.",
                     "why_it_exists": "Teams decouple frontend UIs from backend business/database systems so each layer scales and deploys independently.",
                     "how_it_works": "A client sends an explicit request contract over HTTP, RPC, or messaging middleware; the service processes it and returns serialized data.",
-                    "example": "Calling `math.sqrt(16)` is a library call; requesting `GET /creatures/yeti` over HTTP is a service API call.",
+                    "example": "Calling `math.sqrt(16)` is a library call; requesting `GET /items/42` over HTTP is a service API call.",
                     "difference": "Library calls share memory space and throw language exceptions; service calls cross network boundaries using URLs, verbs, and status codes.",
                     "quick_check": {
                         "question": "Which communication pattern passes messages where multiple workers compete so only ONE worker processes each task?",
@@ -132,14 +165,14 @@ class InteractiveLearningBuilder:
                     "difference": "Pub-Sub fans out to all interested listeners; Queues distribute load across workers.",
                 },
             ])
-        if any(k in low for k in ("http", "rest", "crud", "endpoint", "route")):
+        if any(k in low for k in ("http", "rest", "crud", "endpoint", "route")) and "layer" not in low:
             cards.extend([
                 {
                     "term": "RESTful Design Principles",
                     "what_it_is": "An architectural style over HTTP emphasizing stateless, cacheable, resource-based endpoints.",
                     "why_it_exists": "Stateless HTTP endpoints simplify horizontal scaling and caching across clients (browsers, mobile apps, services).",
-                    "how_it_works": "Each resource URL (like `/creatures`) is paired with standard HTTP methods (`GET`, `POST`, `PUT`, `PATCH`, `DELETE`).",
-                    "example": "`GET /creatures/bigfoot` retrieves a resource; `POST /creatures` creates a new one.",
+                    "how_it_works": "Each resource URL (like `/items`) is paired with standard HTTP methods (`GET`, `POST`, `PUT`, `PATCH`, `DELETE`).",
+                    "example": "`GET /items/42` retrieves a resource; `POST /items` creates a new one.",
                     "difference": "Stateless means each HTTP request carries all context the server needs instead of relying on hidden server session state.",
                     "quick_check": {
                         "question": "Which HTTP method partially updates an existing resource rather than replacing the entire resource?",
@@ -153,7 +186,7 @@ class InteractiveLearningBuilder:
                     "what_it_is": "Standard 3-digit response codes categorizing request outcomes.",
                     "why_it_exists": "Clients can programmatically distinguish success, redirects, client input mistakes, and server crashes without scraping prose.",
                     "how_it_works": "2xx signals success (`200`, `201`), 3xx redirection, 4xx client error (`404`, `422`), and 5xx server failure.",
-                    "example": "Returning `404 Not Found` when `/creatures/unknown` does not exist lets frontends display a clean fallback.",
+                    "example": "Returning `404 Not Found` when `/items/999` does not exist lets frontends display a clean fallback.",
                     "difference": "4xx indicates the client sent bad data or requested a missing path; 5xx indicates the backend crashed.",
                 },
             ])
@@ -203,22 +236,16 @@ class InteractiveLearningBuilder:
                 },
             })
 
-        # Add extracted definitions from the current lesson markdown for universal domain coverage
-        existing_terms = {c["term"].lower() for c in cards}
-        for term, desc in extracted_defs:
-            if term.lower() in existing_terms or len(cards) >= 5:
-                continue
-            existing_terms.add(term.lower())
-            cards.append({
-                "term": term,
-                "what_it_is": desc,
-                "why_it_exists": f"Core building block in {topic_title} ({chapter_title}).",
-                "how_it_works": desc,
-                "example": f"Applied inside the Worked Example and Practice sections of {topic_title}.",
-                "difference": f"Distinguished from adjacent concepts within {chapter_title} by explicit contract and scope.",
-            })
+        # Deduplicate while keeping extracted definitions first
+        deduped: List[Dict[str, Any]] = []
+        seen_c: set[str] = set()
+        for c in cards:
+            t_low = str(c.get("term") or "").strip().lower()
+            if t_low and t_low not in seen_c:
+                seen_c.add(t_low)
+                deduped.append(c)
 
-        return cards[:5]
+        return deduped[:5]
 
     @staticmethod
     def _extract_bold_definitions(lesson_content: str) -> List[tuple[str, str]]:
@@ -278,7 +305,7 @@ class InteractiveLearningBuilder:
                     },
                 ],
             }
-        if any(k in low for k in ("http", "rest", "service", "api", "json", "fastapi")):
+        if any(k in low for k in ("http", "rest", "endpoint", "route")) or ("fastapi" in low and "async" not in low and "pydantic" not in low):
             return {
                 "title": "HTTP Request -> Response Lifecycle",
                 "subtitle": "Inspect how a FastAPI/REST client-server request flows step by step.",
@@ -382,13 +409,15 @@ class InteractiveLearningBuilder:
                 "title": "Layered Architecture Request Tracer",
                 "description": "Step through how Web, Service, and Data layers collaborate cleanly without layer violations.",
             }
-        if any(k in low for k in ("http", "rest", "service", "api", "json", "fastapi", "endpoint", "route")):
+        if any(k in low for k in ("http", "rest", "endpoint", "route", "fastapi")) and not any(
+            ex in low for ex in ("layer", "pydantic", "async", "concurren", "dependency", "auth", "test")
+        ):
             return {
                 "type": "http_request",
                 "title": "Interactive HTTP & REST Request Simulator",
-                "description": "Experiment with GET, POST, PUT, PATCH, DELETE requests against a sample Creature endpoint and inspect live request/response behavior.",
+                "description": "Experiment with GET, POST, PUT, PATCH, DELETE requests against a sample REST endpoint and inspect live request/response behavior.",
                 "default_method": "GET",
-                "default_endpoint": "/creatures",
+                "default_endpoint": "/items",
             }
         if any(k in low for k in ("async", "concurren", "starlette")):
             return {
@@ -407,7 +436,7 @@ class InteractiveLearningBuilder:
         domain: str,
     ) -> Optional[Dict[str, Any]]:
         is_fastapi_course = "fastapi" in f"{course_title} {chapter_title}".lower()
-        if not is_fastapi_course and domain != "computer_science":
+        if not is_fastapi_course:
             return None
 
         ch_low = f"{chapter_title} {topic_title}".lower()
@@ -470,30 +499,30 @@ class InteractiveLearningBuilder:
                 ],
                 "explanation": "FastAPI builds its OpenAPI schema and request validation directly from Python type annotations.",
             }
-        if "fastapi tour" in ch_low or "application" in ch_low:
+        if "fastapi tour" in ch_low or "fastapi application" in ch_low or "what is fastapi" in ch_low:
             return {
-                "project_name": "Mini Creature Management API",
+                "project_name": "Task & Item Service API",
                 "step_number": 3,
                 "milestone_title": "Step 3: Initialize FastAPI App & First Endpoint",
                 "learning_objective": "Define a FastAPI application instance and bind a GET route handler returning JSON.",
-                "deliverable": "Create `FastAPI()` instance and expose `/creatures` returning JSON.",
+                "deliverable": "Create `FastAPI()` instance and expose `/items` returning JSON.",
                 "requirements": [
-                    "Instantiate `app = FastAPI(title='Creature Management API')`.",
-                    "Decorate `list_creatures()` with `@app.get('/creatures')`.",
+                    "Instantiate `app = FastAPI(title='Item Service API')`.",
+                    "Decorate `list_items()` with `@app.get('/items')`.",
                 ],
                 "starter_code": (
                     "from fastapi import FastAPI\n\n"
-                    "app = FastAPI(title='Creature Management API')\n\n"
-                    "@app.get('/creatures')\n"
-                    "def list_creatures():\n"
-                    "    return [{'name': 'Yeti', 'country': 'CN'}]\n"
+                    "app = FastAPI(title='Item Service API')\n\n"
+                    "@app.get('/items')\n"
+                    "def list_items():\n"
+                    "    return [{'id': 1, 'name': 'Sample Item'}]\n"
                 ),
-                "expected_output": "[{'name': 'Yeti', 'country': 'CN'}]",
+                "expected_output": "[{'id': 1, 'name': 'Sample Item'}]",
                 "test_cases": [],
                 "hints": [
                     "FastAPI automatically serializes returned Python lists and dicts to JSON.",
                 ],
-                "explanation": "FastAPI inspects the `@app.get('/creatures')` decorator and converts the returned Python list into an HTTP JSON response.",
+                "explanation": "FastAPI inspects the `@app.get('/items')` decorator and converts the returned Python list into an HTTP JSON response.",
             }
         if "async" in ch_low or "concurren" in ch_low:
             return {

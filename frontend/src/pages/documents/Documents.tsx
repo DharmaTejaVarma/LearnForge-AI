@@ -66,6 +66,16 @@ export const Documents: React.FC = () => {
   const processFile = async (file: File) => {
     setUploadError(null);
     setUploadSuccess(null);
+    const existingByName = documents.find(
+      (d) => d.original_filename.trim().toLowerCase() === file.name.trim().toLowerCase(),
+    );
+    if (existingByName) {
+      setUploadError(
+        `Duplicate document: "${existingByName.original_filename}" is already uploaded (${existingByName.page_count} pages).`,
+      );
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
     setIsUploading(true);
 
     try {

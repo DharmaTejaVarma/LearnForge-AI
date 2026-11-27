@@ -89,6 +89,14 @@ export const Flashcards: React.FC = () => {
 
   const currentCard = displayedCards[currentIndex] ?? null;
 
+  const existingDeckCards = cards.filter((c) => {
+    const sameScope =
+      scopeType === 'document'
+        ? c.document_id === selectedDocId
+        : c.course_id === selectedCourseId;
+    return sameScope && (c.difficulty || 'medium').toLowerCase() === difficulty.toLowerCase();
+  });
+
   const handleGenerate = async () => {
     const docId = scopeType === 'document' ? selectedDocId : undefined;
     const courseId = scopeType === 'course' ? selectedCourseId : undefined;
@@ -258,6 +266,14 @@ export const Flashcards: React.FC = () => {
       {/* Generation Controls */}
       <Card className="p-4">
         <div className="flex flex-col gap-3">
+          {existingDeckCards.length > 0 && (
+            <div className="p-2.5 rounded-[10px] bg-status-warning-bg border border-status-warning-border text-status-warning-text text-xs flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              <span>
+                You already have {existingDeckCards.length} {difficulty} flashcard(s) for this source.
+              </span>
+            </div>
+          )}
           {/* Scope Selector */}
           <div className="flex gap-2">
             <button

@@ -17,14 +17,15 @@ const HTTP_METHOD_INFO: Record<string, { crud: string; safe: string; desc: strin
 
 export const InteractiveSimulator: React.FC<InteractiveSimulatorProps> = ({ simulator }) => {
   const [method, setMethod] = useState<string>(simulator.default_method || 'GET');
-  const [endpoint, setEndpoint] = useState<string>(simulator.default_endpoint || '/creatures');
+  const [endpoint, setEndpoint] = useState<string>(simulator.default_endpoint || '/items');
   const [queryParam, setQueryParam] = useState<string>('');
   const [bodyText, setBodyText] = useState<string>(
-    JSON.stringify({ name: 'Nessie', country: 'UK', area: 'Loch Ness', aka: 'Loch Ness Monster' }, null, 2),
+    JSON.stringify({ name: 'Sample Item', country: 'US', area: 'Core', aka: 'Demo' }, null, 2),
   );
   const [creatures, setCreatures] = useState<Record<string, any>>({
+    alpha: { name: 'Alpha', country: 'US', area: 'Primary', aka: 'Item 1' },
+    beta: { name: 'Beta', country: 'UK', area: 'Secondary', aka: 'Item 2' },
     yeti: { name: 'Yeti', country: 'CN', area: 'Himalayas', aka: 'Abominable Snowman' },
-    bigfoot: { name: 'Bigfoot', country: 'US', area: 'Pacific Northwest', aka: 'Sasquatch' },
   });
   const [simResponse, setSimResponse] = useState<{
     status: number;
@@ -48,11 +49,11 @@ export const InteractiveSimulator: React.FC<InteractiveSimulatorProps> = ({ simu
       `2. Web Layer parses URL parts=${JSON.stringify(parts)} & validates contract`,
     ];
 
-    if (parts[0] !== 'creatures') {
+    if (parts[0] !== 'creatures' && parts[0] !== 'items') {
       setSimResponse({
         status: 404,
         statusText: 'Not Found',
-        body: { detail: `Unknown route '${cleanPath}'. Try '/creatures' or '/creatures/yeti'.` },
+        body: { detail: `Unknown route '${cleanPath}'. Try '/items' or '/items/alpha'.` },
         trace: [...trace, '3. Router found no matching endpoint -> returns HTTP 404'],
       });
       return;

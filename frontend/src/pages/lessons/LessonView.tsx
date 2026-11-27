@@ -114,6 +114,7 @@ export const LessonView: React.FC = () => {
 
     if (courseId) {
       localStorage.setItem(`learnforge_last_lesson_${courseId}`, String(lessonId));
+      localStorage.setItem(`learnforge_lesson_course_${lessonId}`, String(courseId));
     }
 
     const cached = flatLessons.find((item) => item.lesson.id === lessonId);

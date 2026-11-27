@@ -302,8 +302,9 @@ class CourseService:
         job_id: Optional[int] = None,
     ) -> None:
         """Synthesize queued lessons in parallel (up to MAX_PARALLEL_LESSONS at once)."""
-        # Local CPU Ollama runs faster sequentially (avoids CPU thrashing); cloud can parallelize
-        MAX_PARALLEL_LESSONS = 1 if model_router.is_local_only() else 3
+        # Local CPU Ollama runs faster sequentially (avoids CPU thrashing); Groq free-tier 8k TPM runs cleanest at 2
+        from app.core.config import settings
+        MAX_PARALLEL_LESSONS = 1 if model_router.is_local_only() else (2 if settings.GROQ_API_KEY else 3)
         semaphore = asyncio.Semaphore(MAX_PARALLEL_LESSONS)
         completed_count = 0
         total = len(lesson_ids)
@@ -511,6 +512,22 @@ class CourseService:
             raise ForbiddenException("Unauthorized document access")
         if doc.processing_status == "failed":
             raise BadRequestException("Document processing failed; please reprocess or re-upload.")
+
+        if getattr(req, "prevent_duplicate", False):
+            req_diff = (req.difficulty_level or "intermediate").lower()
+            dup_res = await db.execute(
+                select(Course).where(
+                    Course.user_id == user_id,
+                    Course.document_id == req.document_id,
+                    Course.difficulty_level == req_diff,
+                )
+            )
+            existing_course = dup_res.scalars().first()
+            if existing_course:
+                from app.core.exceptions import ConflictException
+                raise ConflictException(
+                    f"Course '{existing_course.title}' already exists for this document and '{req_diff}' difficulty."
+                )
         if doc.processing_status == "uploaded" and "pytest" not in sys.modules:
             for _ in range(30):
                 await asyncio.sleep(1.0)
@@ -1006,11 +1023,11 @@ class CourseService:
             )
             perf_meta["exercise_gen_ms"] = round((_time.perf_counter() - t_ex) * 1000, 1)
 
-        await _emit("SAVING", "Saving validated lesson")
         t_db = _time.perf_counter()
         await db.commit()
         await db.refresh(lesson)
         perf_meta["db_persist_ms"] = round((_time.perf_counter() - t_db) * 1000, 1)
+        await _emit("SAVING", "Saving validated lesson")
         return lesson
 
     @staticmethod
@@ -1116,6 +1133,8 @@ class CourseService:
                 if lesson.generation_status in ("queued", "pending"):
                     lesson.generation_status = "generating"
                     await db.commit()
+                    res = await db.execute(query)
+                    lesson = res.scalars().first()
                 await LessonJobService.enqueue_lesson_job(
                     course_id=lesson.topic.chapter.course_id,
                     lesson_id=lesson_id,
@@ -1125,13 +1144,14 @@ class CourseService:
 
         # Prefetch next lesson ONLY after current lesson is ready so we don't block the active lesson
         if "pytest" not in sys.modules and lesson.generation_status == "ready" and lesson.topic and lesson.topic.chapter:
+            from app.core.config import settings
             from app.services.job_queue import LessonJobService
             if not LessonJobService.is_prefetch_paused(lesson.topic.chapter.course_id):
                 CourseService._schedule_next_lessons_prefetch(
                     course_id=lesson.topic.chapter.course_id,
                     current_lesson_id=lesson.id,
                     user_id=user_id,
-                    limit=1 if model_router.is_local_only() else 2,
+                    limit=1 if model_router.is_local_only() else (3 if settings.GROQ_API_KEY else 2),
                 )
 
         return await CourseService._build_lesson_response(db, lesson, user_id)
@@ -1276,14 +1296,25 @@ class CourseService:
             raise ForbiddenException("Unauthorized lesson access")
 
         async with _get_lesson_lock(lesson_id):
+            # Preserve student completion status, notes, and exercise submission history
+            prev_sections = dict(lesson.structured_sections or {})
+            prev_ver = int(prev_sections.get("content_version") or 1)
+            prev_sections["content_version"] = prev_ver + 1
+            lesson.structured_sections = prev_sections
             lesson.generation_status = "generating"
             lesson.generation_error = None
             lesson.content = ""
-            lesson.cache_key = None  # Force fresh synthesis on explicit regenerate
+            lesson.cache_key = f"{lesson.cache_key}:v{prev_ver + 1}" if lesson.cache_key else None
+            # Only delete unattempted exercises so student ExerciseSubmission history remains intact
             for old_ex in list(lesson.exercises):
-                await db.delete(old_ex)
+                sub_chk = await db.execute(
+                    select(ExerciseSubmission.id).where(ExerciseSubmission.exercise_id == old_ex.id).limit(1)
+                )
+                if sub_chk.scalar() is None:
+                    await db.delete(old_ex)
             await db.commit()
-            await db.refresh(lesson)
+            res = await db.execute(query)
+            lesson = res.scalars().first()
 
         if "pytest" in sys.modules:
             lesson = await CourseService._populate_lesson_record(db, lesson, user_id)
@@ -1297,6 +1328,49 @@ class CourseService:
             )
 
         return await CourseService._build_lesson_response(db, lesson, user_id)
+
+    @staticmethod
+    async def validate_lesson(db: AsyncSession, user_id: int, lesson_id: int) -> Dict[str, Any]:
+        """Validate an existing lesson's source coverage, technical accuracy, and exercise alignment without modifying progress."""
+        from app.services.code_validator import CodeValidationPipeline
+        from app.services.lesson_evaluator import LessonEvaluator
+
+        res = await db.execute(
+            select(Lesson)
+            .where(Lesson.id == lesson_id)
+            .options(
+                selectinload(Lesson.topic).selectinload(Topic.chapter).selectinload(Chapter.course),
+                selectinload(Lesson.exercises),
+            )
+        )
+        lesson = res.scalars().first()
+        if not lesson:
+            raise NotFoundException("Lesson not found")
+        course = lesson.topic.chapter.course
+        if course.user_id != user_id:
+            raise ForbiddenException("Unauthorized lesson access")
+
+        domain = (course.category or "general").lower().replace(" ", "_")
+        subtopics = (lesson.structured_sections or {}).get("subtopics") or []
+        tech_val = CodeValidationPipeline.validate_technical_claims(lesson.content or "", domain=domain)
+        ex_dicts = [
+            {"title": e.title, "prompt": e.prompt, "exercise_type": e.exercise_type}
+            for e in (lesson.exercises or [])
+        ]
+        eval_report = LessonEvaluator.evaluate(
+            topic_title=lesson.title,
+            lesson_content=lesson.content or "",
+            subtopics=subtopics,
+            exercises=ex_dicts,
+            learning_objectives=lesson.learning_objectives or [],
+            technical_validation=tech_val,
+        )
+        return {
+            "lesson_id": lesson.id,
+            "title": lesson.title,
+            "evaluation": eval_report,
+            "technical_validation": tech_val,
+        }
 
     @staticmethod
     async def run_exercise_code(

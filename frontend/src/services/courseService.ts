@@ -351,6 +351,7 @@ export const courseService = {
       document_id: documentId,
       difficulty_level: difficulty,
       target_chapters_count: targetChapters,
+      prevent_duplicate: true,
     }, { timeout: 180000 });
     return res.data;
   },
@@ -397,6 +398,11 @@ export const courseService = {
 
   async regenerateLesson(lessonId: number): Promise<Lesson> {
     const res = await api.post<Lesson>(`/lessons/${lessonId}/regenerate`, undefined, { timeout: 300000 });
+    return res.data;
+  },
+
+  async validateLesson(lessonId: number): Promise<any> {
+    const res = await api.post<any>(`/lessons/${lessonId}/validate`);
     return res.data;
   },
 
