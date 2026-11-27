@@ -33,27 +33,27 @@ const typeMeta: Record<string, { label: string; icon: React.ReactNode; badge: st
   mcq: {
     label: 'Concept Check',
     icon: <HelpCircle className="h-3.5 w-3.5" />,
-    badge: 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30',
+    badge: 'bg-brand-soft text-brand border-brand-soft-border',
   },
   coding: {
     label: 'Coding Lab',
     icon: <Code2 className="h-3.5 w-3.5" />,
-    badge: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
+    badge: 'bg-status-success-bg text-status-success-text border-status-success-border',
   },
   debugging: {
     label: 'Debug Challenge',
     icon: <Bug className="h-3.5 w-3.5" />,
-    badge: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
+    badge: 'bg-status-warning-bg text-status-warning-text border-status-warning-border',
   },
   fill_blank: {
     label: 'Fill in the Blank',
     icon: <PenLine className="h-3.5 w-3.5" />,
-    badge: 'bg-purple-500/15 text-purple-300 border-purple-500/30',
+    badge: 'bg-accent-soft text-accent border-accent-soft-border',
   },
   mini_task: {
     label: 'Applied Mini Task',
     icon: <Sparkles className="h-3.5 w-3.5" />,
-    badge: 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30',
+    badge: 'bg-brand-soft text-brand border-brand-soft-border',
   },
 };
 
@@ -145,25 +145,25 @@ export const LessonExercisesPanel: React.FC<LessonExercisesPanelProps> = ({
   return (
     <section
       id="practice-exercises"
-      className="mt-10 pt-8 border-t border-slate-800 space-y-6"
+      className="mt-10 pt-8 border-t border-line space-y-6"
     >
       {/* Header Row */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold text-white flex items-center gap-2.5">
-            <span className="h-8 w-8 rounded-lg bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
+          <h2 className="lf-heading-section flex items-center gap-2.5">
+            <span className="h-8 w-8 rounded-[10px] bg-brand-soft border border-brand-soft-border flex items-center justify-center text-brand">
               <Sparkles className="h-4 w-4" />
             </span>
-            Practice &amp; Test Your Knowledge
+            <span>Practice &amp; Test Your Knowledge</span>
           </h2>
-          <p className="text-xs text-slate-400 mt-1">
+          <p className="text-xs text-ink-secondary mt-1">
             Interactive exercises grounded in this lesson with instant feedback and isolated code checks.
           </p>
         </div>
 
-        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-950 border border-slate-800 text-xs font-semibold">
-          <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-          <span className="text-slate-200">
+        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-subtle border border-line text-xs font-semibold">
+          <CheckCircle2 className="h-4 w-4 text-status-success-text" />
+          <span className="text-ink-primary">
             {solvedCount} / {exercises.length} Solved
           </span>
         </div>
@@ -175,10 +175,10 @@ export const LessonExercisesPanel: React.FC<LessonExercisesPanelProps> = ({
           <button
             type="button"
             onClick={() => setActiveFilter('all')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+            className={`px-3 py-1.5 rounded-[10px] text-xs font-medium transition-colors ${
               activeFilter === 'all'
-                ? 'bg-indigo-600 text-white'
-                : 'bg-slate-800/70 text-slate-300 hover:bg-slate-800'
+                ? 'bg-brand text-white'
+                : 'bg-subtle text-ink-secondary hover:bg-hoverbg hover:text-ink-primary'
             }`}
           >
             All ({exercises.length})
@@ -191,10 +191,10 @@ export const LessonExercisesPanel: React.FC<LessonExercisesPanelProps> = ({
                 key={type}
                 type="button"
                 onClick={() => setActiveFilter(type)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                className={`px-3 py-1.5 rounded-[10px] text-xs font-medium transition-colors ${
                   activeFilter === type
-                    ? 'bg-indigo-600 text-white'
-                    : 'bg-slate-800/70 text-slate-300 hover:bg-slate-800'
+                    ? 'bg-brand text-white'
+                    : 'bg-subtle text-ink-secondary hover:bg-hoverbg hover:text-ink-primary'
                 }`}
               >
                 {meta.label} ({count})
@@ -218,10 +218,10 @@ export const LessonExercisesPanel: React.FC<LessonExercisesPanelProps> = ({
           return (
             <div
               key={ex.id}
-              className={`rounded-2xl border p-5 md:p-6 space-y-4 transition-all ${
+              className={`rounded-[12px] border p-5 md:p-6 space-y-4 transition-all ${
                 isSolved
-                  ? 'bg-emerald-950/15 border-emerald-500/30'
-                  : 'bg-slate-950/60 border-slate-800'
+                  ? 'bg-status-success-bg/40 border-status-success-border'
+                  : 'bg-subtle border-line'
               }`}
             >
               {/* Card Top Meta */}
@@ -233,14 +233,14 @@ export const LessonExercisesPanel: React.FC<LessonExercisesPanelProps> = ({
                     {meta.icon}
                     <span>{meta.label}</span>
                   </span>
-                  <span className="text-xs font-semibold text-slate-400">
+                  <span className="text-xs font-semibold text-ink-secondary">
                     #{idx + 1} · {ex.title}
                   </span>
                 </div>
 
                 <div className="flex items-center gap-2">
                   {isSolved && (
-                    <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-400">
+                    <span className="inline-flex items-center gap-1 text-xs font-semibold text-status-success-text">
                       <CheckCircle2 className="h-4 w-4" />
                       Solved
                     </span>
@@ -249,9 +249,9 @@ export const LessonExercisesPanel: React.FC<LessonExercisesPanelProps> = ({
                     <button
                       type="button"
                       onClick={() => onAskTutorHint(ex)}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-indigo-300 text-[11px] font-medium border border-slate-700"
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[10px] bg-surface hover:bg-hoverbg text-brand text-[11px] font-medium border border-line transition-colors"
                     >
-                      <Bot className="h-3.5 w-3.5" />
+                      <Bot className="h-3.5 w-3.5 text-accent" />
                       Ask Tutor Hint
                     </button>
                   )}
@@ -259,7 +259,7 @@ export const LessonExercisesPanel: React.FC<LessonExercisesPanelProps> = ({
               </div>
 
               {/* Prompt */}
-              <div className="text-base text-slate-100 leading-relaxed">
+              <div className="text-base text-ink-primary leading-relaxed">
                 <MarkdownRenderer content={ex.prompt} className="prose-base" />
               </div>
 
@@ -275,17 +275,17 @@ export const LessonExercisesPanel: React.FC<LessonExercisesPanelProps> = ({
                         onClick={() =>
                           setSelectedAnswers((p) => ({ ...p, [ex.id]: opt }))
                         }
-                        className={`w-full text-left px-5 py-3.5 rounded-xl border text-sm md:text-base transition-all flex items-start gap-3 ${
+                        className={`w-full text-left px-5 py-3.5 rounded-[10px] border text-sm md:text-[15px] transition-all flex items-start gap-3 ${
                           selected
-                            ? 'bg-indigo-600/20 border-indigo-500 text-white'
-                            : 'bg-slate-900/70 border-slate-800 text-slate-300 hover:border-slate-700 hover:bg-slate-900'
+                            ? 'bg-hoverbg border-brand text-ink-primary font-medium'
+                            : 'bg-surface border-line text-ink-secondary hover:border-brand-soft-border hover:bg-hoverbg hover:text-ink-primary'
                         }`}
                       >
                         <span
-                          className={`mt-0.5 h-4 w-4 rounded-full border flex items-center justify-center shrink-0 text-[10px] font-bold ${
+                          className={`mt-0.5 h-5 w-5 rounded-full border flex items-center justify-center shrink-0 text-[10px] font-bold ${
                             selected
-                              ? 'border-indigo-400 bg-indigo-500 text-white'
-                              : 'border-slate-600 text-slate-500'
+                              ? 'border-brand bg-brand text-white'
+                              : 'border-line-strong text-ink-secondary'
                           }`}
                         >
                           {String.fromCharCode(65 + optIdx)}
@@ -308,7 +308,7 @@ export const LessonExercisesPanel: React.FC<LessonExercisesPanelProps> = ({
                         setSelectedAnswers((p) => ({ ...p, [ex.id]: e.target.value }))
                       }
                       placeholder="Type the missing technical term..."
-                      className="w-full rounded-xl bg-slate-900 border border-slate-700 px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      className="lf-control w-full px-4 py-2.5 text-sm"
                     />
                   ) : (
                     <textarea
@@ -318,7 +318,7 @@ export const LessonExercisesPanel: React.FC<LessonExercisesPanelProps> = ({
                         setSelectedAnswers((p) => ({ ...p, [ex.id]: e.target.value }))
                       }
                       placeholder="Write your concise practical response..."
-                      className="w-full rounded-xl bg-slate-900 border border-slate-700 px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      className="lf-control w-full px-4 py-2.5 text-sm"
                     />
                   )}
                 </div>
@@ -327,9 +327,9 @@ export const LessonExercisesPanel: React.FC<LessonExercisesPanelProps> = ({
               {/* Coding / Debugging Isolated Editor */}
               {isCodeEx && (
                 <div className="space-y-3">
-                  <div className="rounded-xl border border-slate-800 bg-slate-950 overflow-hidden">
-                    <div className="flex items-center justify-between px-3.5 py-2 bg-slate-900 border-b border-slate-800 text-[11px] text-slate-400">
-                      <span className="font-mono font-semibold text-slate-300">
+                  <div className="rounded-[12px] border border-codeblock-border bg-codeblock-bg overflow-hidden shadow-card">
+                    <div className="flex items-center justify-between px-3.5 py-2 bg-codeblock-header border-b border-codeblock-border text-[11px] text-codeblock-muted">
+                      <span className="font-mono font-semibold text-codeblock-text">
                         python_sandbox.py (Isolated Subprocess)
                       </span>
                       <button
@@ -340,7 +340,7 @@ export const LessonExercisesPanel: React.FC<LessonExercisesPanelProps> = ({
                             [ex.id]: ex.starter_code || ex.buggy_code || '',
                           }))
                         }
-                        className="inline-flex items-center gap-1 text-slate-400 hover:text-white"
+                        className="inline-flex items-center gap-1 text-codeblock-muted hover:text-codeblock-text transition-colors"
                       >
                         <RotateCcw className="h-3 w-3" />
                         Reset Starter
@@ -367,39 +367,39 @@ export const LessonExercisesPanel: React.FC<LessonExercisesPanelProps> = ({
                       onChange={(e) =>
                         setCodeInputs((p) => ({ ...p, [ex.id]: e.target.value }))
                       }
-                      className="w-full bg-slate-950 p-3.5 font-mono text-xs md:text-sm text-emerald-100 focus:outline-none resize-y"
+                      className="w-full bg-codeblock-bg p-3.5 font-mono text-xs md:text-sm text-emerald-100 focus:outline-none resize-y"
                     />
                   </div>
 
                   {/* Test Run Results Output */}
                   {runOut && (
-                    <div className="rounded-xl border border-slate-800 bg-slate-900/90 p-3.5 space-y-2 text-xs">
+                    <div className="rounded-[10px] border border-line bg-surface p-3.5 space-y-2 text-xs">
                       <div className="flex items-center justify-between font-semibold">
-                        <span className={runOut.passed ? 'text-emerald-400' : 'text-amber-400'}>
+                        <span className={runOut.passed ? 'text-status-success-text' : 'text-status-warning-text'}>
                           {runOut.passed
                             ? `All ${runOut.total_tests} test(s) passed`
                             : `${runOut.passed_tests}/${runOut.total_tests} test(s) passed`}
                         </span>
                       </div>
                       {runOut.stdout && (
-                        <pre className="p-2 rounded bg-slate-950 text-slate-300 font-mono overflow-x-auto">
+                        <pre className="p-2.5 rounded-[10px] bg-codeblock-bg text-codeblock-text font-mono overflow-x-auto">
                           {runOut.stdout}
                         </pre>
                       )}
                       {runOut.stderr && (
-                        <pre className="p-2 rounded bg-rose-950/40 text-rose-300 font-mono overflow-x-auto">
+                        <pre className="p-2.5 rounded-[10px] bg-codeblock-bg text-rose-300 font-mono overflow-x-auto">
                           {runOut.stderr}
                         </pre>
                       )}
                       {runOut.results?.map((r, rIdx) => (
                         <div key={rIdx} className="flex items-center gap-2">
                           {r.passed ? (
-                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                            <CheckCircle2 className="h-3.5 w-3.5 text-status-success-text shrink-0" />
                           ) : (
-                            <XCircle className="h-3.5 w-3.5 text-rose-400 shrink-0" />
+                            <XCircle className="h-3.5 w-3.5 text-status-danger-text shrink-0" />
                           )}
-                          <span className="text-slate-300">{r.description}</span>
-                          {!r.passed && <span className="text-rose-400">— {r.message}</span>}
+                          <span className="text-ink-primary">{r.description}</span>
+                          {!r.passed && <span className="text-status-danger-text">— {r.message}</span>}
                         </div>
                       ))}
                     </div>
@@ -409,7 +409,7 @@ export const LessonExercisesPanel: React.FC<LessonExercisesPanelProps> = ({
 
               {/* Progressive Hints */}
               {hintCount > 0 && ex.hints && (
-                <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 space-y-1 text-xs text-amber-200">
+                <div className="p-3 rounded-[10px] bg-status-warning-bg border border-status-warning-border space-y-1 text-xs text-status-warning-text">
                   {ex.hints.slice(0, hintCount).map((h, hIdx) => (
                     <p key={hIdx}>
                       <strong>Hint {hIdx + 1}:</strong> {h}
@@ -450,7 +450,7 @@ export const LessonExercisesPanel: React.FC<LessonExercisesPanelProps> = ({
                     onClick={() =>
                       setRevealedHints((p) => ({ ...p, [ex.id]: (p[ex.id] || 0) + 1 }))
                     }
-                    icon={<Lightbulb className="h-3.5 w-3.5 text-amber-400" />}
+                    icon={<Lightbulb className="h-3.5 w-3.5 text-status-warning-text" />}
                   >
                     {hintCount === 0 ? 'Show Hint' : 'Next Hint'}
                   </Button>
@@ -460,26 +460,26 @@ export const LessonExercisesPanel: React.FC<LessonExercisesPanelProps> = ({
               {/* Submission Feedback */}
               {sub && (
                 <div
-                  className={`p-3.5 rounded-xl border text-xs md:text-sm space-y-1.5 ${
+                  className={`p-3.5 rounded-[10px] border text-xs md:text-sm space-y-1.5 ${
                     sub.is_correct
-                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-200'
-                      : 'bg-rose-500/10 border-rose-500/30 text-rose-200'
+                      ? 'bg-status-success-bg border-status-success-border text-status-success-text'
+                      : 'bg-status-danger-bg border-status-danger-border text-status-danger-text'
                   }`}
                 >
                   <div className="flex items-center gap-2 font-semibold">
                     {sub.is_correct ? (
-                      <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
+                      <CheckCircle2 className="h-4 w-4 shrink-0" />
                     ) : (
-                      <XCircle className="h-4 w-4 text-rose-400 shrink-0" />
+                      <XCircle className="h-4 w-4 shrink-0" />
                     )}
                     <span>
                       {sub.is_correct ? 'Verified Correct' : 'Needs Revision'} (Attempt #
                       {sub.attempt_number})
                     </span>
                   </div>
-                  <p className="text-slate-200">{sub.feedback}</p>
+                  <p className="text-ink-primary">{sub.feedback}</p>
                   {sub.explanation && (
-                    <p className="text-xs text-slate-300 pt-1 border-t border-white/10">
+                    <p className="text-xs text-ink-secondary pt-1 border-t border-line">
                       <strong>Why:</strong> {sub.explanation}
                     </p>
                   )}

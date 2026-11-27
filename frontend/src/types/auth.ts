@@ -3,8 +3,14 @@ export interface User {
   email: string;
   full_name: string | null;
   is_active: boolean;
+  role?: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface ProfileUpdatePayload {
+  full_name?: string;
+  password?: string;
 }
 
 export interface LoginCredentials {
@@ -31,5 +37,6 @@ export interface AuthContextType {
   isLoading: boolean;
   login: (credentials: LoginCredentials) => Promise<void>;
   register: (credentials: RegisterCredentials) => Promise<void>;
+  updateProfile: (payload: ProfileUpdatePayload) => Promise<User>;
   logout: () => void;
 }

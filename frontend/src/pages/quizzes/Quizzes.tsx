@@ -48,24 +48,32 @@ const QuestionResultCard: React.FC<QuestionResultProps> = ({
   const [expanded, setExpanded] = useState(!isCorrect);
 
   return (
-    <Card className={`p-5 border ${isCorrect ? 'bg-slate-900 border-slate-800' : 'bg-red-900/10 border-red-500/30'}`}>
+    <Card
+      className={`p-5 ${
+        isCorrect ? '' : 'border-status-danger-border bg-status-danger-bg'
+      }`}
+    >
       <div className="flex items-start gap-3">
-        <div className={`shrink-0 mt-0.5 rounded-full p-0.5 ${isCorrect ? 'text-emerald-400' : 'text-red-400'}`}>
+        <div
+          className={`shrink-0 mt-0.5 rounded-full p-0.5 ${
+            isCorrect ? 'text-status-success-text' : 'text-status-danger-text'
+          }`}
+        >
           {isCorrect ? <CheckCircle2 className="h-5 w-5" /> : <XCircle className="h-5 w-5" />}
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-white leading-snug mb-2">
-            <span className="text-slate-400 mr-1">Q{idx + 1}.</span>
+          <p className="text-sm font-semibold text-ink-primary leading-snug mb-2">
+            <span className="text-ink-secondary mr-1">Q{idx + 1}.</span>
             {questionText}
           </p>
 
           {questionType === 'short_answer' || !options || options.length === 0 ? (
             <div className="space-y-1.5 mb-3 text-xs">
-              <div className="px-3 py-2 rounded-lg bg-slate-800/60 border border-slate-700 text-slate-300">
-                <span className="text-slate-400 font-medium">Your answer: </span>
-                {selectedAnswer || <em className="text-slate-500">Unanswered</em>}
+              <div className="px-3 py-2 rounded-[10px] bg-subtle border border-line text-ink-primary">
+                <span className="text-ink-secondary font-medium">Your answer: </span>
+                {selectedAnswer || <em className="text-ink-secondary">Unanswered</em>}
               </div>
-              <div className="px-3 py-2 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-200">
+              <div className="px-3 py-2 rounded-[10px] bg-status-success-bg border border-status-success-border text-status-success-text">
                 <span className="font-medium">Reference answer: </span>
                 {correctAnswer}
               </div>
@@ -78,12 +86,12 @@ const QuestionResultCard: React.FC<QuestionResultProps> = ({
                 return (
                   <div
                     key={oi}
-                    className={`px-3 py-2 rounded-lg text-xs border flex items-center justify-between ${
+                    className={`px-3 py-2 rounded-[10px] text-xs border flex items-center justify-between ${
                       isCorrectOpt
-                        ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-200'
+                        ? 'bg-status-success-bg border-status-success-border text-status-success-text font-medium'
                         : isSelected
-                        ? 'bg-red-500/20 border-red-500/40 text-red-200'
-                        : 'bg-slate-800/40 border-slate-700/40 text-slate-400'
+                        ? 'bg-status-danger-bg border-status-danger-border text-status-danger-text font-medium'
+                        : 'bg-subtle border-line text-ink-secondary'
                     }`}
                   >
                     <span>{opt}</span>
@@ -99,14 +107,14 @@ const QuestionResultCard: React.FC<QuestionResultProps> = ({
             <button
               type="button"
               onClick={() => setExpanded((v) => !v)}
-              className="flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+              className="flex items-center gap-1 text-xs font-medium text-accent hover:text-accent-hover transition-colors"
             >
-              {expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+              {expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
               {expanded ? 'Hide' : 'Show'} explanation
             </button>
           )}
           {expanded && explanation && (
-            <div className="mt-2 p-3 bg-indigo-500/10 border border-indigo-500/20 rounded-lg text-xs text-slate-300 leading-relaxed">
+            <div className="mt-2 p-3 bg-brand-soft border border-brand-soft-border rounded-[10px] text-xs text-ink-primary leading-relaxed">
               {explanation}
             </div>
           )}
@@ -248,10 +256,10 @@ export const Quizzes: React.FC = () => {
 
   const scoreColor =
     (quizResult?.score_percentage ?? 0) >= 80
-      ? 'text-emerald-400'
+      ? 'text-status-success-text'
       : (quizResult?.score_percentage ?? 0) >= 60
-      ? 'text-amber-400'
-      : 'text-red-400';
+      ? 'text-status-warning-text'
+      : 'text-status-danger-text';
 
   if (isLoading) return <Spinner size="lg" />;
 
@@ -259,18 +267,18 @@ export const Quizzes: React.FC = () => {
     <div className="space-y-6 max-w-3xl mx-auto">
       {/* Header */}
       <div>
-        <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight flex items-center gap-2">
-          <BookOpen className="h-7 w-7 text-indigo-400" />
-          Quizzes
+        <h1 className="lf-heading-main flex items-center gap-2.5">
+          <BookOpen className="h-7 w-7 text-accent" />
+          <span>Quizzes</span>
         </h1>
-        <p className="text-sm text-slate-400 mt-1">
+        <p className="text-sm text-ink-secondary mt-1">
           Adaptive assessments (MCQ, True/False, Short Answer) grounded in your study materials
         </p>
       </div>
 
       {/* Error */}
       {error && (
-        <div className="flex items-start gap-3 p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-300 text-sm">
+        <div className="flex items-start gap-3 p-3.5 bg-status-danger-bg border border-status-danger-border rounded-[12px] text-status-danger-text text-sm">
           <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
           <span>{error}</span>
         </div>
@@ -279,18 +287,20 @@ export const Quizzes: React.FC = () => {
       {!activeQuiz ? (
         <div className="space-y-6">
           {/* Generation Form */}
-          <Card className="bg-slate-900 border-slate-800 p-6 space-y-5">
-            <h2 className="text-base font-semibold text-white">Generate a New Quiz</h2>
+          <Card className="p-6 space-y-5">
+            <h2 className="lf-heading-card">Generate a New Quiz</h2>
 
             <form onSubmit={handleGenerate} className="space-y-4">
               <div>
-                <label className="text-xs font-medium text-slate-400 mb-1.5 block">Source</label>
+                <label className="lf-label-sm mb-1.5 block">Source</label>
                 <div className="flex gap-2">
                   <button
                     type="button"
                     onClick={() => setScopeType('document')}
-                    className={`flex-1 py-2 rounded-lg text-xs font-medium transition-colors ${
-                      scopeType === 'document' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'
+                    className={`flex-1 py-2 rounded-[10px] text-xs font-medium transition-colors ${
+                      scopeType === 'document'
+                        ? 'bg-brand text-white'
+                        : 'bg-subtle text-ink-secondary hover:text-ink-primary hover:bg-hoverbg'
                     }`}
                   >
                     By Document
@@ -298,8 +308,10 @@ export const Quizzes: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setScopeType('course')}
-                    className={`flex-1 py-2 rounded-lg text-xs font-medium transition-colors ${
-                      scopeType === 'course' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'
+                    className={`flex-1 py-2 rounded-[10px] text-xs font-medium transition-colors ${
+                      scopeType === 'course'
+                        ? 'bg-brand text-white'
+                        : 'bg-subtle text-ink-secondary hover:text-ink-primary hover:bg-hoverbg'
                     }`}
                   >
                     By Course
@@ -308,14 +320,14 @@ export const Quizzes: React.FC = () => {
               </div>
 
               <div>
-                <label className="text-xs font-medium text-slate-400 mb-1.5 block">
+                <label className="lf-label-sm mb-1.5 block">
                   {scopeType === 'document' ? 'Document' : 'Course'}
                 </label>
                 {scopeType === 'document' ? (
                   <select
                     value={selectedDocId || ''}
                     onChange={(e) => setSelectedDocId(Number(e.target.value))}
-                    className="w-full bg-slate-800 border border-slate-700 text-sm rounded-lg px-3 py-2 text-white focus:outline-none focus:border-indigo-500"
+                    className="lf-control w-full text-sm px-3 py-2"
                     required
                   >
                     {documents.length === 0 ? (
@@ -332,7 +344,7 @@ export const Quizzes: React.FC = () => {
                   <select
                     value={selectedCourseId || ''}
                     onChange={(e) => setSelectedCourseId(Number(e.target.value))}
-                    className="w-full bg-slate-800 border border-slate-700 text-sm rounded-lg px-3 py-2 text-white focus:outline-none focus:border-indigo-500"
+                    className="lf-control w-full text-sm px-3 py-2"
                     required
                   >
                     {courses.length === 0 ? (
@@ -350,11 +362,11 @@ export const Quizzes: React.FC = () => {
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="text-xs font-medium text-slate-400 mb-1.5 block">Questions</label>
+                  <label className="lf-label-sm mb-1.5 block">Questions</label>
                   <select
                     value={questionCount}
                     onChange={(e) => setQuestionCount(Number(e.target.value))}
-                    className="w-full bg-slate-800 border border-slate-700 text-sm rounded-lg px-3 py-2 text-white focus:outline-none focus:border-indigo-500"
+                    className="lf-control w-full text-sm px-3 py-2"
                   >
                     <option value={5}>5 Questions</option>
                     <option value={10}>10 Questions</option>
@@ -362,11 +374,11 @@ export const Quizzes: React.FC = () => {
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-slate-400 mb-1.5 block">Difficulty</label>
+                  <label className="lf-label-sm mb-1.5 block">Difficulty</label>
                   <select
                     value={difficulty}
                     onChange={(e) => setDifficulty(e.target.value)}
-                    className="w-full bg-slate-800 border border-slate-700 text-sm rounded-lg px-3 py-2 text-white focus:outline-none focus:border-indigo-500"
+                    className="lf-control w-full text-sm px-3 py-2"
                   >
                     <option value="easy">Easy</option>
                     <option value="medium">Medium</option>
@@ -374,11 +386,11 @@ export const Quizzes: React.FC = () => {
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-slate-400 mb-1.5 block">Question Format</label>
+                  <label className="lf-label-sm mb-1.5 block">Question Format</label>
                   <select
                     value={questionType}
                     onChange={(e) => setQuestionType(e.target.value)}
-                    className="w-full bg-slate-800 border border-slate-700 text-sm rounded-lg px-3 py-2 text-white focus:outline-none focus:border-indigo-500"
+                    className="lf-control w-full text-sm px-3 py-2"
                   >
                     <option value="mcq">Multiple Choice (MCQ)</option>
                     <option value="true_false">True / False</option>
@@ -388,12 +400,12 @@ export const Quizzes: React.FC = () => {
                 </div>
               </div>
 
-              <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none">
+              <label className="flex items-center gap-2 text-xs text-ink-primary cursor-pointer select-none">
                 <input
                   type="checkbox"
                   checked={useTimer}
                   onChange={(e) => setUseTimer(e.target.checked)}
-                  className="rounded bg-slate-800 border-slate-700 text-indigo-600 focus:ring-indigo-500"
+                  className="rounded border-line-strong text-brand focus:ring-brand accent-brand"
                 />
                 <span>Enable session stopwatch during assessment</span>
               </label>
@@ -416,13 +428,13 @@ export const Quizzes: React.FC = () => {
 
           {/* Past Quizzes */}
           {pastQuizzes.length > 0 && (
-            <Card title={`Recent Quizzes (${pastQuizzes.length})`} className="bg-slate-900 border-slate-800">
-              <div className="divide-y divide-slate-800">
+            <Card title={`Recent Quizzes (${pastQuizzes.length})`}>
+              <div className="divide-y divide-line">
                 {pastQuizzes.slice(0, 6).map((q) => (
                   <div key={q.id} className="py-3 flex items-center justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="text-sm font-medium text-white truncate">{q.title}</p>
-                      <p className="text-xs text-slate-400 mt-0.5">
+                      <p className="text-sm font-medium text-ink-primary truncate">{q.title}</p>
+                      <p className="text-xs text-ink-secondary mt-0.5">
                         {q.question_count} questions • {formatFriendlyDate(q.created_at)}
                       </p>
                     </div>
@@ -433,7 +445,7 @@ export const Quizzes: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => handleDeleteQuiz(q.id)}
-                        className="p-2 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                        className="p-2 rounded-[10px] text-ink-secondary hover:text-status-danger-text hover:bg-status-danger-bg transition-colors"
                         title="Delete quiz"
                       >
                         <Trash2 className="h-4 w-4" />
@@ -448,30 +460,33 @@ export const Quizzes: React.FC = () => {
       ) : quizResult ? (
         /* Results Panel */
         <div className="space-y-5">
-          <Card className="bg-slate-900 border-slate-800 p-8 text-center">
-            <div className="h-16 w-16 rounded-full bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center mx-auto text-indigo-400 mb-4">
+          <Card className="p-8 text-center">
+            <div className="h-16 w-16 rounded-full bg-brand-soft border border-brand-soft-border flex items-center justify-center mx-auto text-brand mb-4">
               <Trophy className="h-8 w-8" />
             </div>
-            <span className="text-xs font-semibold uppercase tracking-wider text-indigo-400">
+            <span className="text-xs font-semibold uppercase tracking-wider text-accent">
               Assessment Complete
             </span>
-            <h2 className={`text-4xl font-extrabold mt-2 ${scoreColor}`}>
+            <h2 className={`text-4xl font-bold mt-2 ${scoreColor}`}>
               {quizResult.score_percentage}%
             </h2>
-            <p className="text-sm text-slate-400 mt-1">
+            <p className="text-sm text-ink-secondary mt-1">
               {quizResult.correct_answers_count} of {quizResult.total_questions} correct
               {useTimer && elapsedSeconds > 0 ? ` • Time: ${formatTimer(elapsedSeconds)}` : ''}
             </p>
 
-            <div className="mt-4 p-4 rounded-xl bg-slate-800/60 border border-slate-700 text-sm text-slate-200 text-left max-w-md mx-auto">
-              <p className="font-semibold text-indigo-300 text-xs uppercase mb-1">Feedback</p>
-              <p className="text-xs text-slate-300 leading-relaxed">{quizResult.feedback}</p>
+            <div className="mt-4 p-4 rounded-[12px] bg-subtle border border-line text-sm text-ink-primary text-left max-w-md mx-auto">
+              <p className="font-semibold text-accent text-xs uppercase mb-1">Feedback</p>
+              <p className="text-xs text-ink-secondary leading-relaxed">{quizResult.feedback}</p>
             </div>
 
             <div className="flex justify-center gap-3 mt-6">
               <Button
                 variant="secondary"
-                onClick={() => { setActiveQuiz(null); setQuizResult(null); }}
+                onClick={() => {
+                  setActiveQuiz(null);
+                  setQuizResult(null);
+                }}
                 icon={<RotateCcw className="h-4 w-4" />}
               >
                 Back to Quizzes
@@ -481,7 +496,7 @@ export const Quizzes: React.FC = () => {
 
           {quizResult.question_results && quizResult.question_results.length > 0 && (
             <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-white">Question Review</h3>
+              <h3 className="text-sm font-semibold text-ink-primary">Question Review</h3>
               {quizResult.question_results.map((qr, idx) => (
                 <QuestionResultCard
                   key={qr.question_id}
@@ -501,16 +516,16 @@ export const Quizzes: React.FC = () => {
       ) : (
         /* Quiz Taker */
         <div className="space-y-5">
-          <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+          <div className="flex items-center justify-between pb-3 border-b border-line">
             <div>
-              <h2 className="text-base font-semibold text-white">{activeQuiz.title}</h2>
+              <h2 className="lf-heading-card">{activeQuiz.title}</h2>
               {activeQuiz.description && (
-                <p className="text-xs text-slate-400 mt-0.5">{activeQuiz.description}</p>
+                <p className="text-xs text-ink-secondary mt-0.5">{activeQuiz.description}</p>
               )}
             </div>
-            <div className="flex items-center gap-3 shrink-0 ml-3 text-xs text-slate-400">
+            <div className="flex items-center gap-3 shrink-0 ml-3 text-xs text-ink-secondary">
               {useTimer && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-indigo-300 font-mono">
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-[10px] bg-brand-soft border border-brand-soft-border text-brand font-mono">
                   <Clock className="h-3 w-3" />
                   {formatTimer(elapsedSeconds)}
                 </span>
@@ -521,23 +536,23 @@ export const Quizzes: React.FC = () => {
             </div>
           </div>
 
-          <div className="h-1 bg-slate-800 rounded-full">
+          <div className="h-1.5 bg-subtle rounded-full overflow-hidden">
             <div
-              className="h-1 bg-indigo-500 rounded-full transition-all"
+              className="h-full bg-accent rounded-full transition-all"
               style={{ width: `${totalCount > 0 ? (answeredCount / totalCount) * 100 : 0}%` }}
             />
           </div>
 
           <div className="space-y-5">
             {activeQuiz.questions.map((q, qIdx) => (
-              <Card key={q.id} className="bg-slate-900 border-slate-800 p-5 space-y-4">
+              <Card key={q.id} className="p-5 space-y-4">
                 <div className="flex items-start gap-3">
-                  <span className="h-6 w-6 rounded-full bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 text-xs flex items-center justify-center font-bold shrink-0">
+                  <span className="h-6 w-6 rounded-full bg-brand-soft text-brand border border-brand-soft-border text-xs flex items-center justify-center font-bold shrink-0">
                     {qIdx + 1}
                   </span>
                   <div className="space-y-1 flex-1">
-                    <h4 className="text-sm font-semibold text-white leading-relaxed">{q.question_text}</h4>
-                    <span className="inline-block text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-slate-800 text-slate-400">
+                    <h4 className="text-sm font-semibold text-ink-primary leading-relaxed">{q.question_text}</h4>
+                    <span className="inline-block text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-subtle text-ink-secondary border border-line">
                       {(q.question_type || 'mcq').replace('_', ' ')}
                     </span>
                   </div>
@@ -550,7 +565,7 @@ export const Quizzes: React.FC = () => {
                       value={selectedAnswers[q.id] || ''}
                       onChange={(e) => handleSelectOption(q.id, e.target.value)}
                       placeholder="Type your concise answer grounded in course concepts..."
-                      className="w-full bg-slate-800/60 border border-slate-700 rounded-lg p-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                      className="lf-control w-full p-3 text-sm"
                     />
                   </div>
                 ) : (
@@ -561,14 +576,14 @@ export const Quizzes: React.FC = () => {
                         <div
                           key={optIdx}
                           onClick={() => handleSelectOption(q.id, opt)}
-                          className={`cursor-pointer p-3 rounded-lg border text-sm transition-all flex items-center justify-between ${
+                          className={`cursor-pointer p-3 rounded-[10px] border text-sm transition-all flex items-center justify-between ${
                             isSelected
-                              ? 'bg-indigo-600/20 border-indigo-500 text-white font-medium'
-                              : 'bg-slate-800/40 border-slate-700/60 text-slate-300 hover:bg-slate-800 hover:border-slate-600'
+                              ? 'bg-hoverbg border-brand text-ink-primary font-medium'
+                              : 'bg-surface border-line text-ink-secondary hover:bg-hoverbg hover:text-ink-primary hover:border-brand-soft-border'
                           }`}
                         >
                           <span>{opt}</span>
-                          {isSelected && <CheckCircle2 className="h-4 w-4 text-indigo-400 shrink-0" />}
+                          {isSelected && <CheckCircle2 className="h-4 w-4 text-accent shrink-0" />}
                         </div>
                       );
                     })}
@@ -581,13 +596,16 @@ export const Quizzes: React.FC = () => {
           <div className="flex justify-between items-center pt-2">
             <Button
               variant="ghost"
-              onClick={() => { setActiveQuiz(null); setQuizResult(null); }}
+              onClick={() => {
+                setActiveQuiz(null);
+                setQuizResult(null);
+              }}
             >
               Cancel
             </Button>
             <div className="flex items-center gap-3">
               {answeredCount < totalCount && (
-                <span className="text-xs text-amber-400">
+                <span className="text-xs text-status-warning-text font-medium">
                   {totalCount - answeredCount} question{totalCount - answeredCount !== 1 ? 's' : ''} unanswered
                 </span>
               )}

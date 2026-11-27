@@ -23,9 +23,9 @@ import {
 type MasteryLevel = 'new' | 'reviewing' | 'mastered';
 
 const MASTERY_COLORS: Record<MasteryLevel, string> = {
-  new: 'bg-slate-700 text-slate-300',
-  reviewing: 'bg-amber-500/20 text-amber-300 border border-amber-500/30',
-  mastered: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30',
+  new: 'bg-subtle text-ink-secondary border border-line',
+  reviewing: 'bg-status-warning-bg text-status-warning-text border border-status-warning-border',
+  mastered: 'bg-status-success-bg text-status-success-text border border-status-success-border',
 };
 
 const MASTERY_LABELS: Record<MasteryLevel, string> = {
@@ -130,7 +130,6 @@ export const Flashcards: React.FC = () => {
       const updated = await learningService.reviewFlashcard(currentCard.id, mastered);
       setCards((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
       setIsFlipped(false);
-      // Move to next
       if (currentIndex < displayedCards.length - 1) {
         setCurrentIndex((prev) => prev + 1);
       } else {
@@ -197,11 +196,11 @@ export const Flashcards: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight flex items-center gap-2">
-            <Layers className="h-7 w-7 text-indigo-400" />
-            Flashcards
+          <h1 className="lf-heading-main flex items-center gap-2.5">
+            <Layers className="h-7 w-7 text-accent" />
+            <span>Flashcards</span>
           </h1>
-          <p className="text-sm text-slate-400 mt-1">
+          <p className="text-sm text-ink-secondary mt-1">
             Active recall study deck with spaced repetition
           </p>
         </div>
@@ -215,10 +214,10 @@ export const Flashcards: React.FC = () => {
               setCurrentIndex(0);
               setIsFlipped(false);
             }}
-            className={`px-2.5 py-1 rounded-full font-medium border transition-all ${
+            className={`px-3 py-1 rounded-full font-medium border transition-all ${
               dueOnly
-                ? 'bg-indigo-600 text-white border-indigo-500'
-                : 'bg-slate-800 text-slate-300 border-slate-700 hover:border-slate-600'
+                ? 'bg-brand text-white border-brand'
+                : 'bg-surface text-ink-secondary border-line hover:bg-hoverbg hover:text-ink-primary'
             }`}
           >
             {dueOnly ? 'Showing Due Only' : 'SM-2 Due Queue'}
@@ -235,15 +234,18 @@ export const Flashcards: React.FC = () => {
                   }}
                   className={`px-2.5 py-1 rounded-full font-medium transition-all ${
                     MASTERY_COLORS[level]
-                  } ${filterMastery === level ? 'ring-2 ring-white/30' : ''}`}
+                  } ${filterMastery === level ? 'ring-2 ring-accent' : ''}`}
                 >
                   {MASTERY_LABELS[level]} · {masteryStats[level]}
                 </button>
               ))}
               {filterMastery && (
                 <button
-                  onClick={() => { setFilterMastery(''); setCurrentIndex(0); }}
-                  className="text-slate-400 hover:text-white px-1"
+                  onClick={() => {
+                    setFilterMastery('');
+                    setCurrentIndex(0);
+                  }}
+                  className="text-ink-secondary hover:text-ink-primary px-1.5 font-medium"
                 >
                   ✕ All
                 </button>
@@ -254,26 +256,26 @@ export const Flashcards: React.FC = () => {
       </div>
 
       {/* Generation Controls */}
-      <Card className="bg-slate-900/60 border-slate-800 p-4">
+      <Card className="p-4">
         <div className="flex flex-col gap-3">
           {/* Scope Selector */}
           <div className="flex gap-2">
             <button
               onClick={() => setScopeType('document')}
-              className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              className={`flex-1 py-2 rounded-[10px] text-xs font-medium transition-colors ${
                 scopeType === 'document'
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-slate-800 text-slate-400 hover:text-white'
+                  ? 'bg-brand text-white'
+                  : 'bg-subtle text-ink-secondary hover:text-ink-primary hover:bg-hoverbg'
               }`}
             >
               By Document
             </button>
             <button
               onClick={() => setScopeType('course')}
-              className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              className={`flex-1 py-2 rounded-[10px] text-xs font-medium transition-colors ${
                 scopeType === 'course'
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-slate-800 text-slate-400 hover:text-white'
+                  ? 'bg-brand text-white'
+                  : 'bg-subtle text-ink-secondary hover:text-ink-primary hover:bg-hoverbg'
               }`}
             >
               By Course
@@ -281,12 +283,11 @@ export const Flashcards: React.FC = () => {
           </div>
 
           <div className="flex flex-wrap gap-2 items-center">
-            {/* Source Selector */}
             {scopeType === 'document' ? (
               <select
                 value={selectedDocId || ''}
                 onChange={(e) => setSelectedDocId(Number(e.target.value))}
-                className="bg-slate-800 border border-slate-700 text-xs rounded-lg px-3 py-2 text-white focus:outline-none flex-1 min-w-[140px]"
+                className="lf-control text-xs px-3 py-2 flex-1 min-w-[140px]"
               >
                 {documents.length === 0 ? (
                   <option value="">No documents uploaded</option>
@@ -302,7 +303,7 @@ export const Flashcards: React.FC = () => {
               <select
                 value={selectedCourseId || ''}
                 onChange={(e) => setSelectedCourseId(Number(e.target.value))}
-                className="bg-slate-800 border border-slate-700 text-xs rounded-lg px-3 py-2 text-white focus:outline-none flex-1 min-w-[140px]"
+                className="lf-control text-xs px-3 py-2 flex-1 min-w-[140px]"
               >
                 {courses.length === 0 ? (
                   <option value="">No courses available</option>
@@ -316,22 +317,20 @@ export const Flashcards: React.FC = () => {
               </select>
             )}
 
-            {/* Count */}
             <select
               value={count}
               onChange={(e) => setCount(Number(e.target.value))}
-              className="bg-slate-800 border border-slate-700 text-xs rounded-lg px-3 py-2 text-white focus:outline-none"
+              className="lf-control text-xs px-3 py-2"
             >
               <option value={5}>5 Cards</option>
               <option value={10}>10 Cards</option>
               <option value={15}>15 Cards</option>
             </select>
 
-            {/* Difficulty */}
             <select
               value={difficulty}
               onChange={(e) => setDifficulty(e.target.value)}
-              className="bg-slate-800 border border-slate-700 text-xs rounded-lg px-3 py-2 text-white focus:outline-none"
+              className="lf-control text-xs px-3 py-2"
             >
               <option value="easy">Easy</option>
               <option value="medium">Medium</option>
@@ -357,7 +356,7 @@ export const Flashcards: React.FC = () => {
 
       {/* Error */}
       {error && (
-        <div className="flex items-start gap-3 p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-300 text-sm">
+        <div className="flex items-start gap-3 p-3.5 bg-status-danger-bg border border-status-danger-border rounded-[12px] text-status-danger-text text-sm">
           <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
           <span>{error}</span>
         </div>
@@ -367,14 +366,14 @@ export const Flashcards: React.FC = () => {
       {isLoading ? (
         <Spinner size="lg" />
       ) : displayedCards.length === 0 ? (
-        <Card className="p-12 text-center bg-slate-900 border-slate-800">
-          <div className="h-14 w-14 rounded-2xl bg-indigo-600/10 border border-indigo-500/20 flex items-center justify-center mx-auto text-indigo-400 mb-4">
+        <Card className="p-12 text-center">
+          <div className="h-14 w-14 rounded-[12px] bg-brand-soft border border-brand-soft-border flex items-center justify-center mx-auto text-brand mb-4">
             <BookOpen className="h-7 w-7" />
           </div>
-          <h3 className="text-lg font-bold text-white">
+          <h3 className="lf-heading-card">
             {filterMastery ? `No ${MASTERY_LABELS[filterMastery as MasteryLevel]} cards` : 'No flashcards yet'}
           </h3>
-          <p className="text-xs text-slate-400 max-w-sm mx-auto mt-1 mb-6">
+          <p className="text-xs text-ink-secondary max-w-sm mx-auto mt-1 mb-6">
             {filterMastery
               ? 'Try another filter or generate more cards.'
               : 'Generate flashcard pairs from your documents or courses to start active recall.'}
@@ -383,7 +382,7 @@ export const Flashcards: React.FC = () => {
       ) : (
         <div className="space-y-4">
           {/* Progress Bar */}
-          <div className="flex items-center justify-between text-xs text-slate-400">
+          <div className="flex items-center justify-between text-xs text-ink-secondary">
             <span>
               Card {currentIndex + 1} of {displayedCards.length}
               {filterMastery && ` (${MASTERY_LABELS[filterMastery as MasteryLevel]} only)`}
@@ -392,9 +391,9 @@ export const Flashcards: React.FC = () => {
               {masteryStats.mastered} / {cards.length} mastered
             </span>
           </div>
-          <div className="h-1 bg-slate-800 rounded-full">
+          <div className="h-1.5 bg-subtle rounded-full overflow-hidden">
             <div
-              className="h-1 bg-indigo-500 rounded-full transition-all"
+              className="h-full bg-accent rounded-full transition-all"
               style={{ width: `${((currentIndex + 1) / displayedCards.length) * 100}%` }}
             />
           </div>
@@ -415,23 +414,22 @@ export const Flashcards: React.FC = () => {
             >
               {/* Front */}
               <div
-                className="absolute inset-0 w-full rounded-2xl bg-slate-900 border border-slate-700 p-8 flex flex-col items-center justify-center"
+                className="absolute inset-0 w-full lf-card p-8 flex flex-col items-center justify-center"
                 style={{ backfaceVisibility: 'hidden' }}
               >
                 <div className="mb-3">
-                  <span className="text-xs font-semibold uppercase tracking-widest text-indigo-400">
+                  <span className="text-xs font-semibold uppercase tracking-widest text-accent">
                     Question
                   </span>
                 </div>
-                <p className="text-xl font-semibold text-white text-center leading-relaxed">
+                <p className="text-xl font-semibold text-ink-primary text-center leading-relaxed">
                   {currentCard?.front_prompt}
                 </p>
-                <p className="text-xs text-slate-500 mt-6 flex items-center gap-1">
-                  <RotateCw className="h-3 w-3" /> Click to reveal answer
+                <p className="text-xs text-ink-secondary mt-6 flex items-center gap-1.5">
+                  <RotateCw className="h-3.5 w-3.5 text-accent" /> Click to reveal answer
                 </p>
-                {/* Mastery Badge */}
                 <div className="absolute top-4 right-4">
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${MASTERY_COLORS[currentCard?.mastery_level as MasteryLevel ?? 'new']}`}>
+                  <span className={`text-xs px-2.5 py-0.5 rounded-full font-medium ${MASTERY_COLORS[currentCard?.mastery_level as MasteryLevel ?? 'new']}`}>
                     {MASTERY_LABELS[currentCard?.mastery_level as MasteryLevel ?? 'new']}
                   </span>
                 </div>
@@ -439,15 +437,15 @@ export const Flashcards: React.FC = () => {
 
               {/* Back */}
               <div
-                className="absolute inset-0 w-full rounded-2xl bg-indigo-900/30 border border-indigo-500/40 p-8 flex flex-col items-center justify-center"
+                className="absolute inset-0 w-full rounded-[12px] bg-hoverbg border border-brand-soft-border p-8 shadow-card flex flex-col items-center justify-center"
                 style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}
               >
                 <div className="mb-3">
-                  <span className="text-xs font-semibold uppercase tracking-widest text-indigo-400">
+                  <span className="text-xs font-semibold uppercase tracking-widest text-accent">
                     Answer
                   </span>
                 </div>
-                <p className="text-lg text-white text-center leading-relaxed">
+                <p className="text-lg font-medium text-ink-primary text-center leading-relaxed">
                   {currentCard?.back_answer}
                 </p>
               </div>
@@ -461,8 +459,8 @@ export const Flashcards: React.FC = () => {
                 variant="ghost"
                 size="sm"
                 onClick={() => handleReview(false)}
-                icon={<XCircle className="h-4 w-4 text-red-400" />}
-                className="border border-red-500/30 hover:bg-red-500/10"
+                icon={<XCircle className="h-4 w-4" />}
+                className="border border-status-danger-border text-status-danger-text hover:bg-status-danger-bg"
               >
                 Got it wrong
               </Button>
@@ -470,8 +468,8 @@ export const Flashcards: React.FC = () => {
                 variant="ghost"
                 size="sm"
                 onClick={() => handleReview(true)}
-                icon={<CheckCircle className="h-4 w-4 text-emerald-400" />}
-                className="border border-emerald-500/30 hover:bg-emerald-500/10"
+                icon={<CheckCircle className="h-4 w-4" />}
+                className="border border-status-success-border text-status-success-text hover:bg-status-success-bg"
               >
                 Got it right
               </Button>
@@ -479,10 +477,10 @@ export const Flashcards: React.FC = () => {
           ) : (
             <div className="flex items-center justify-between pt-2">
               <div className="flex gap-2">
-                <Button variant="ghost" size="sm" onClick={() => handleNav('prev')} icon={<ChevronLeft className="h-4 w-4" />}>
+                <Button variant="secondary" size="sm" onClick={() => handleNav('prev')} icon={<ChevronLeft className="h-4 w-4" />}>
                   Prev
                 </Button>
-                <Button variant="ghost" size="sm" onClick={() => handleNav('next')} icon={<ChevronRight className="h-4 w-4" />}>
+                <Button variant="secondary" size="sm" onClick={() => handleNav('next')} icon={<ChevronRight className="h-4 w-4" />}>
                   Next
                 </Button>
               </div>
@@ -491,8 +489,8 @@ export const Flashcards: React.FC = () => {
                 size="sm"
                 onClick={() => currentCard && handleDelete(currentCard.id)}
                 isLoading={deletingId === currentCard?.id}
-                icon={<Trash2 className="h-4 w-4 text-red-400" />}
-                className="text-red-400 hover:bg-red-500/10"
+                icon={<Trash2 className="h-4 w-4" />}
+                className="text-status-danger-text hover:bg-status-danger-bg"
               >
                 Delete
               </Button>
@@ -500,12 +498,12 @@ export const Flashcards: React.FC = () => {
           )}
 
           {/* Keyboard hint */}
-          <p className="text-center text-xs text-slate-500">
-            Shortcuts: <kbd className="px-1.5 py-0.5 bg-slate-800 rounded border border-slate-700">Space</kbd> Flip ·{' '}
-            <kbd className="px-1.5 py-0.5 bg-slate-800 rounded border border-slate-700">←</kbd>{' '}
-            <kbd className="px-1.5 py-0.5 bg-slate-800 rounded border border-slate-700">→</kbd> Navigate ·{' '}
-            <kbd className="px-1.5 py-0.5 bg-slate-800 rounded border border-slate-700">1</kbd> /{' '}
-            <kbd className="px-1.5 py-0.5 bg-slate-800 rounded border border-slate-700">2</kbd> Grade
+          <p className="text-center text-xs text-ink-secondary">
+            Shortcuts: <kbd className="px-1.5 py-0.5 bg-subtle rounded border border-line text-ink-primary font-mono">Space</kbd> Flip ·{' '}
+            <kbd className="px-1.5 py-0.5 bg-subtle rounded border border-line text-ink-primary font-mono">←</kbd>{' '}
+            <kbd className="px-1.5 py-0.5 bg-subtle rounded border border-line text-ink-primary font-mono">→</kbd> Navigate ·{' '}
+            <kbd className="px-1.5 py-0.5 bg-subtle rounded border border-line text-ink-primary font-mono">1</kbd> /{' '}
+            <kbd className="px-1.5 py-0.5 bg-subtle rounded border border-line text-ink-primary font-mono">2</kbd> Grade
           </p>
         </div>
       )}
@@ -514,10 +512,10 @@ export const Flashcards: React.FC = () => {
       {cards.length > 0 && (
         <div className="mt-8">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold text-white">All Cards ({cards.length})</h2>
+            <h2 className="text-sm font-semibold text-ink-primary">All Cards ({cards.length})</h2>
             <button
               onClick={loadData}
-              className="text-xs text-slate-400 hover:text-white flex items-center gap-1"
+              className="text-xs text-ink-secondary hover:text-brand flex items-center gap-1 transition-colors"
             >
               <RefreshCw className="h-3 w-3" /> Refresh
             </button>
@@ -534,22 +532,26 @@ export const Flashcards: React.FC = () => {
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                   }
                 }}
-                className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-colors ${
+                className={`flex items-center justify-between p-3 rounded-[12px] border cursor-pointer transition-colors ${
                   currentCard?.id === card.id
-                    ? 'bg-indigo-600/20 border-indigo-500/40'
-                    : 'bg-slate-900/50 border-slate-800 hover:border-slate-700'
+                    ? 'bg-hoverbg border-brand'
+                    : 'bg-surface border-line hover:border-brand-soft-border'
                 }`}
               >
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs text-white truncate">{card.front_prompt}</p>
+                  <p className="text-xs font-medium text-ink-primary truncate">{card.front_prompt}</p>
                 </div>
                 <div className="flex items-center gap-2 ml-2 shrink-0">
                   <span className={`text-xs px-2 py-0.5 rounded-full ${MASTERY_COLORS[card.mastery_level as MasteryLevel ?? 'new']}`}>
                     {MASTERY_LABELS[card.mastery_level as MasteryLevel ?? 'new']}
                   </span>
                   <button
-                    onClick={(e) => { e.stopPropagation(); handleDelete(card.id); }}
-                    className="text-slate-500 hover:text-red-400 transition-colors"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDelete(card.id);
+                    }}
+                    className="text-ink-secondary hover:text-status-danger-text transition-colors p-1"
+                    title="Delete card"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>

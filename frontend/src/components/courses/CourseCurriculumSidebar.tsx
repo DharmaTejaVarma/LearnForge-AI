@@ -1,10 +1,10 @@
 import React from 'react';
 import { Course, CourseGenerationProgress } from '../../services/courseService';
-import { 
-  CheckCircle2, 
-  Circle, 
-  ChevronDown, 
-  ChevronRight, 
+import {
+  CheckCircle2,
+  Circle,
+  ChevronDown,
+  ChevronRight,
   GraduationCap,
   Sparkles,
   BarChart2,
@@ -12,7 +12,7 @@ import {
   Loader2,
   Pause,
   Play,
-  RotateCw
+  RotateCw,
 } from 'lucide-react';
 
 interface CourseCurriculumSidebarProps {
@@ -56,7 +56,6 @@ export const CourseCurriculumSidebar: React.FC<CourseCurriculumSidebarProps> = (
   onRetryFailed,
   onCancelActiveJob,
 }) => {
-  // Compute progress & content readiness stats
   let totalLessons = 0;
   let completedLessons = 0;
   let readyLessons = 0;
@@ -81,20 +80,19 @@ export const CourseCurriculumSidebar: React.FC<CourseCurriculumSidebarProps> = (
   const progressPercent = totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
 
   const sidebarContent = (
-    <div className="flex flex-col h-full bg-slate-900 border-r border-slate-800 text-slate-100 select-none">
+    <div className="flex flex-col h-full bg-sidebar border-r border-sidebar-border text-sidebar-text select-none">
       {/* Header & Course Progress */}
-      <div className="p-4 border-b border-slate-800 space-y-3">
+      <div className="p-4 border-b border-sidebar-border space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <GraduationCap className="h-5 w-5 text-indigo-400" />
-            <h2 className="text-sm font-bold text-white tracking-tight uppercase">
+            <GraduationCap className="h-5 w-5 text-violet-300" />
+            <h2 className="text-sm font-bold text-sidebar-text tracking-tight uppercase">
               Course Curriculum
             </h2>
           </div>
-          {/* Mobile close button */}
           <button
             onClick={onCloseMobile}
-            className="md:hidden p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
+            className="lg:hidden p-1.5 rounded-[10px] text-sidebar-muted hover:text-sidebar-text hover:bg-sidebar-hover transition-colors"
             aria-label="Close curriculum sidebar"
           >
             <X className="h-4 w-4" />
@@ -107,40 +105,41 @@ export const CourseCurriculumSidebar: React.FC<CourseCurriculumSidebarProps> = (
             onSelectOverview();
             onCloseMobile();
           }}
-          className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all ${
+          className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-[10px] text-xs font-semibold transition-all ${
             isOverviewMode
-              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-              : 'bg-slate-800/80 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700/60'
+              ? 'bg-sidebar-active text-white shadow-sm'
+              : 'bg-sidebar-surface hover:bg-sidebar-hover text-sidebar-muted hover:text-sidebar-text border border-sidebar-border'
           }`}
         >
-          <BarChart2 className="h-4 w-4 text-indigo-300 shrink-0" />
-          <span className="truncate">Course Overview & Syllabus</span>
+          <BarChart2 className="h-4 w-4 shrink-0" />
+          <span className="truncate">Course Overview &amp; Syllabus</span>
         </button>
 
         {/* Progress Bar Widget */}
-        <div className="p-2.5 rounded-xl bg-slate-950/60 border border-slate-800/80 space-y-1.5">
-          <div className="flex items-center justify-between text-[11px] text-slate-400 font-medium">
+        <div className="p-3 rounded-[12px] bg-sidebar-surface border border-sidebar-border space-y-1.5">
+          <div className="flex items-center justify-between text-[11px] text-sidebar-muted font-medium">
             <span>Overall Progress</span>
-            <span className="text-indigo-300 font-semibold">{progressPercent}%</span>
+            <span className="text-violet-300 font-semibold">{progressPercent}%</span>
           </div>
-          <div className="w-full h-1.5 rounded-full bg-slate-800 overflow-hidden">
+          <div className="w-full h-1.5 rounded-full bg-white/10 overflow-hidden">
             <div
-              className="h-full bg-gradient-to-r from-indigo-500 to-emerald-400 transition-all duration-300 rounded-full"
+              className="h-full lf-gradient-highlight transition-all duration-300 rounded-full"
               style={{ width: `${progressPercent}%` }}
             />
           </div>
-          <div className="text-[10px] text-slate-500 text-right">
+          <div className="text-[10px] text-sidebar-muted/85 text-right">
             {completedLessons} of {totalLessons} lessons completed
           </div>
+
           {/* Compact Course Generation Progress Dashboard */}
-          <div className="pt-2 border-t border-slate-800/70 space-y-1.5">
-            <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-400">
+          <div className="pt-2 border-t border-sidebar-border space-y-1.5">
+            <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-sidebar-muted">
               <span>Course Generation</span>
               {onTogglePrefetch && (
                 <button
                   type="button"
                   onClick={onTogglePrefetch}
-                  className="inline-flex items-center gap-1 text-[10px] font-medium text-indigo-300 hover:text-indigo-200"
+                  className="inline-flex items-center gap-1 text-[10px] font-medium text-violet-300 hover:text-white transition-colors"
                 >
                   {generationProgress?.prefetch_paused ? (
                     <>
@@ -155,49 +154,49 @@ export const CourseCurriculumSidebar: React.FC<CourseCurriculumSidebarProps> = (
               )}
             </div>
 
-            <div className="flex items-center justify-between text-[10px] text-slate-400">
+            <div className="flex items-center justify-between text-[10px] text-sidebar-muted">
               <span>Curriculum</span>
-              <span className="font-mono text-emerald-400">
+              <span className="font-mono text-emerald-300">
                 {generationProgress?.total_lessons ?? totalLessons}/{generationProgress?.total_lessons ?? totalLessons} ready ({generationProgress?.curriculum_percentage ?? 100}%)
               </span>
             </div>
 
-            <div className="flex items-center justify-between text-[10px] text-slate-400">
+            <div className="flex items-center justify-between text-[10px] text-sidebar-muted">
               <span>Lesson Content</span>
-              <span className="font-mono text-indigo-300">
+              <span className="font-mono text-indigo-200">
                 {generationProgress?.ready_lessons ?? readyLessons}/{generationProgress?.total_lessons ?? totalLessons} ready ({generationProgress?.content_readiness_percentage ?? (totalLessons > 0 ? Math.round((readyLessons / totalLessons) * 10000) / 100 : 0)}%)
               </span>
             </div>
 
-            <div className="w-full h-1 rounded-full bg-slate-800 overflow-hidden">
+            <div className="w-full h-1 rounded-full bg-white/10 overflow-hidden">
               <div
-                className="h-full bg-emerald-500 transition-all duration-300 rounded-full"
+                className="h-full bg-emerald-400 transition-all duration-300 rounded-full"
                 style={{
                   width: `${generationProgress?.content_readiness_percentage ?? (totalLessons > 0 ? (readyLessons / totalLessons) * 100 : 0)}%`,
                 }}
               />
             </div>
 
-            <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-[10px] text-slate-400 font-mono">
+            <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-[10px] text-sidebar-muted font-mono">
               <span>{generationProgress?.queued_lessons ?? queuedLessons} queued</span>
               <span>{generationProgress?.generating_lessons ?? generatingLessons} generating</span>
               {(generationProgress?.failed_lessons ?? failedLessons) > 0 && (
-                <span className="text-rose-400">{generationProgress?.failed_lessons ?? failedLessons} failed</span>
+                <span className="text-rose-300">{generationProgress?.failed_lessons ?? failedLessons} failed</span>
               )}
             </div>
 
             {generationProgress?.active_lesson_title && (
-              <div className="p-2 rounded-lg bg-slate-900/90 border border-indigo-500/20 space-y-1 text-[10px]">
+              <div className="p-2 rounded-[10px] bg-white/10 border border-sidebar-border space-y-1 text-[10px]">
                 <div className="flex items-center justify-between gap-1">
-                  <span className="text-indigo-300 font-semibold truncate">
+                  <span className="text-violet-200 font-semibold truncate">
                     <Loader2 className="h-2.5 w-2.5 inline animate-spin mr-1" />
                     {generationProgress.active_lesson_title}
                   </span>
-                  <span className="font-mono text-slate-400 shrink-0">
+                  <span className="font-mono text-sidebar-muted shrink-0">
                     {Math.round(generationProgress.active_elapsed_seconds || 0)}s
                   </span>
                 </div>
-                <div className="flex items-center justify-between gap-1 text-slate-400">
+                <div className="flex items-center justify-between gap-1 text-sidebar-muted">
                   <span className="truncate">{generationProgress.active_stage || 'Generating'}</span>
                   {onCancelActiveJob && generationProgress.active_lesson_id && (
                     <button
@@ -216,7 +215,7 @@ export const CourseCurriculumSidebar: React.FC<CourseCurriculumSidebarProps> = (
               <button
                 type="button"
                 onClick={onRetryFailed}
-                className="w-full inline-flex items-center justify-center gap-1 py-1 rounded-lg bg-rose-500/15 border border-rose-500/30 text-[10px] font-semibold text-rose-300 hover:bg-rose-500/25"
+                className="w-full inline-flex items-center justify-center gap-1 py-1.5 rounded-[10px] bg-rose-500/20 border border-rose-400/30 text-[10px] font-semibold text-rose-200 hover:bg-rose-500/30 transition-colors"
               >
                 <RotateCw className="h-3 w-3" />
                 Retry Failed Lessons ({generationProgress?.failed_lessons ?? failedLessons})
@@ -224,14 +223,14 @@ export const CourseCurriculumSidebar: React.FC<CourseCurriculumSidebarProps> = (
             )}
 
             {generationProgress?.documents_progress && generationProgress.documents_progress.length > 0 && (
-              <div className="pt-1.5 border-t border-slate-800/60 space-y-1">
+              <div className="pt-1.5 border-t border-sidebar-border space-y-1">
                 {generationProgress.documents_progress.slice(0, 2).map((doc, idx) => (
-                  <div key={doc.document_id} className="text-[10px] text-slate-400">
+                  <div key={doc.document_id} className="text-[10px] text-sidebar-muted">
                     <div className="flex items-center justify-between gap-1">
-                      <span className="font-semibold text-slate-300 truncate">
+                      <span className="font-semibold text-sidebar-text truncate">
                         DOC {idx + 1}: {doc.filename}
                       </span>
-                      <span className="font-mono text-emerald-400 shrink-0">
+                      <span className="font-mono text-emerald-300 shrink-0">
                         {doc.indexing_status === 'complete' ? 'Indexed' : doc.embedding_status === 'running' ? 'Embedding' : doc.extraction_status}
                       </span>
                     </div>
@@ -249,7 +248,6 @@ export const CourseCurriculumSidebar: React.FC<CourseCurriculumSidebarProps> = (
           course.chapters.map((chap, cIdx) => {
             const isCollapsed = !!collapsedChapters[chap.id];
 
-            // Count completed lessons in this chapter
             let chapTotal = 0;
             let chapCompleted = 0;
             chap.topics.forEach((t) => {
@@ -262,16 +260,16 @@ export const CourseCurriculumSidebar: React.FC<CourseCurriculumSidebarProps> = (
             return (
               <div
                 key={chap.id}
-                className="rounded-xl border border-slate-800/80 bg-slate-950/40 overflow-hidden transition-all"
+                className="rounded-[12px] border border-sidebar-border bg-sidebar-surface overflow-hidden transition-all"
               >
                 {/* Chapter Accordion Header */}
                 <button
                   type="button"
                   onClick={() => onToggleChapter(chap.id)}
-                  className="w-full flex items-center justify-between p-3 text-left hover:bg-slate-800/50 transition-colors group"
+                  className="w-full flex items-center justify-between p-3 text-left hover:bg-sidebar-hover transition-colors group"
                 >
                   <div className="flex items-start gap-2 pr-2 min-w-0">
-                    <span className="text-slate-400 group-hover:text-indigo-400 mt-0.5 shrink-0 transition-transform">
+                    <span className="text-sidebar-muted group-hover:text-violet-300 mt-0.5 shrink-0 transition-colors">
                       {isCollapsed ? (
                         <ChevronRight className="h-4 w-4" />
                       ) : (
@@ -279,31 +277,30 @@ export const CourseCurriculumSidebar: React.FC<CourseCurriculumSidebarProps> = (
                       )}
                     </span>
                     <div className="min-w-0">
-                      <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider">
+                      <p className="text-[10px] font-bold text-violet-300 uppercase tracking-wider">
                         Module {cIdx + 1}
                       </p>
-                      <h4 className="text-xs font-semibold text-slate-200 group-hover:text-white truncate mt-0.5">
+                      <h4 className="text-xs font-semibold text-sidebar-text truncate mt-0.5">
                         {chap.title}
                       </h4>
                     </div>
                   </div>
 
-                  {/* Chapter lesson count badge */}
-                  <span className="text-[10px] font-mono shrink-0 px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700/50">
+                  <span className="text-[10px] font-mono shrink-0 px-2 py-0.5 rounded-full bg-white/10 text-sidebar-muted border border-sidebar-border">
                     {chapCompleted}/{chapTotal}
                   </span>
                 </button>
 
                 {/* Topics & Lessons */}
                 {!isCollapsed && (
-                  <div className="border-t border-slate-800/60 p-1.5 space-y-1 bg-slate-900/40">
+                  <div className="border-t border-sidebar-border p-1.5 space-y-1">
                     {chap.topics.map((topic) => {
                       const lesson = topic.lesson;
                       if (!lesson) {
                         return (
                           <div
                             key={topic.id}
-                            className="px-3 py-1.5 text-xs text-slate-400 italic"
+                            className="px-3 py-1.5 text-xs text-sidebar-muted italic"
                           >
                             {topic.title} (Draft)
                           </div>
@@ -323,12 +320,12 @@ export const CourseCurriculumSidebar: React.FC<CourseCurriculumSidebarProps> = (
                             onCloseMobile();
                           }}
                           type="button"
-                          className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-left text-xs transition-all ${
+                          className={`w-full flex items-center justify-between px-3 py-2 rounded-[10px] text-left text-xs transition-all ${
                             isSelected
-                              ? 'bg-indigo-600 text-white font-medium shadow-md shadow-indigo-600/30'
+                              ? 'bg-sidebar-active text-white font-medium shadow-sm'
                               : isPending
-                              ? 'text-slate-400 hover:bg-slate-800/70 hover:text-slate-200'
-                              : 'text-slate-300 hover:bg-slate-800/70 hover:text-white'
+                              ? 'text-sidebar-muted hover:bg-sidebar-hover hover:text-sidebar-text'
+                              : 'text-sidebar-muted hover:bg-sidebar-hover hover:text-sidebar-text'
                           }`}
                         >
                           <div className="flex items-center gap-2.5 min-w-0 pr-2">
@@ -340,15 +337,15 @@ export const CourseCurriculumSidebar: React.FC<CourseCurriculumSidebarProps> = (
                               />
                             ) : isPending ? (
                               <span className="relative shrink-0 flex h-3.5 w-3.5 items-center justify-center">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-40"></span>
-                                <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-40" />
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-violet-300" />
                               </span>
                             ) : isFailed ? (
-                              <Circle className="h-3.5 w-3.5 shrink-0 text-rose-500" />
+                              <Circle className="h-3.5 w-3.5 shrink-0 text-rose-400" />
                             ) : (
                               <Circle
                                 className={`h-3.5 w-3.5 shrink-0 ${
-                                  isSelected ? 'text-indigo-200' : 'text-slate-600'
+                                  isSelected ? 'text-indigo-200' : 'text-sidebar-muted/60'
                                 }`}
                               />
                             )}
@@ -358,12 +355,12 @@ export const CourseCurriculumSidebar: React.FC<CourseCurriculumSidebarProps> = (
                           </div>
 
                           {isDone && !isSelected && (
-                            <span className="text-[9px] uppercase font-semibold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded shrink-0">
+                            <span className="text-[9px] uppercase font-semibold text-emerald-300 bg-emerald-500/15 px-1.5 py-0.5 rounded shrink-0">
                               Done
                             </span>
                           )}
                           {isPending && !isSelected && (
-                            <span className="text-[9px] text-indigo-400 shrink-0">AI…</span>
+                            <span className="text-[9px] text-violet-300 shrink-0">AI…</span>
                           )}
                         </button>
                       );
@@ -376,14 +373,14 @@ export const CourseCurriculumSidebar: React.FC<CourseCurriculumSidebarProps> = (
                           onSelectModuleAssessment(chap.id);
                           onCloseMobile();
                         }}
-                        className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-left text-xs font-medium transition-all mt-1 border-t border-slate-800/70 ${
+                        className={`w-full flex items-center justify-between px-3 py-2 rounded-[10px] text-left text-xs font-medium transition-all mt-1 border-t border-sidebar-border ${
                           activeAssessmentChapterId === chap.id
-                            ? 'bg-indigo-600/30 text-indigo-200 border border-indigo-500/40'
-                            : 'text-indigo-300/90 hover:bg-slate-800/70 hover:text-indigo-200'
+                            ? 'bg-sidebar-active text-white'
+                            : 'text-violet-200 hover:bg-sidebar-hover hover:text-white'
                         }`}
                       >
                         <span className="flex items-center gap-2">
-                          <Sparkles className="h-3.5 w-3.5 text-indigo-400" />
+                          <Sparkles className="h-3.5 w-3.5 text-violet-300" />
                           <span>Module {cIdx + 1} Assessment</span>
                         </span>
                       </button>
@@ -394,7 +391,7 @@ export const CourseCurriculumSidebar: React.FC<CourseCurriculumSidebarProps> = (
             );
           })
         ) : (
-          <p className="text-xs text-slate-500 italic p-3 text-center">
+          <p className="text-xs text-sidebar-muted italic p-3 text-center">
             No modules generated for this course.
           </p>
         )}
@@ -406,14 +403,14 @@ export const CourseCurriculumSidebar: React.FC<CourseCurriculumSidebarProps> = (
               onSelectFinalAssessment();
               onCloseMobile();
             }}
-            className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl border text-xs font-bold transition-all ${
+            className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-[10px] border text-xs font-bold transition-all ${
               isFinalAssessmentMode
-                ? 'bg-emerald-600/25 border-emerald-500/50 text-emerald-200'
-                : 'bg-slate-950/70 border-slate-800 text-emerald-300 hover:bg-slate-800/70'
+                ? 'bg-sidebar-active border-indigo-400 text-white'
+                : 'bg-sidebar-surface border-sidebar-border text-emerald-300 hover:bg-sidebar-hover'
             }`}
           >
             <span className="flex items-center gap-2">
-              <GraduationCap className="h-4 w-4 text-emerald-400" />
+              <GraduationCap className="h-4 w-4 text-emerald-300" />
               <span>Final Course Assessment</span>
             </span>
           </button>
@@ -421,34 +418,31 @@ export const CourseCurriculumSidebar: React.FC<CourseCurriculumSidebarProps> = (
       </div>
 
       {/* Footer Branding */}
-      <div className="p-3 border-t border-slate-800 bg-slate-950/80 text-[11px] text-slate-500 flex items-center justify-between">
+      <div className="p-3 border-t border-sidebar-border bg-sidebar-surface text-[11px] text-sidebar-muted flex items-center justify-between">
         <span className="flex items-center gap-1.5">
-          <Sparkles className="h-3 w-3 text-indigo-400" />
+          <Sparkles className="h-3 w-3 text-violet-300" />
           <span>Interactive Syllabus</span>
         </span>
-        <span className="text-slate-600">{course.difficulty_level}</span>
+        <span className="capitalize">{course.difficulty_level}</span>
       </div>
     </div>
   );
 
   return (
     <>
-      {/* Desktop Sticky Sidebar */}
       {!hideOnDesktop && (
-        <aside className="hidden lg:block w-72 shrink-0 h-[calc(100vh-6rem)] sticky top-20 rounded-2xl overflow-hidden border border-slate-800 shadow-xl">
+        <aside className="hidden lg:block w-72 shrink-0 h-[calc(100vh-6rem)] sticky top-20 rounded-[12px] overflow-hidden border border-sidebar-border shadow-card">
           {sidebarContent}
         </aside>
       )}
 
-      {/* Mobile Drawer Backdrop */}
       {isOpenMobile && (
         <div
-          className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm lg:hidden"
+          className="fixed inset-0 z-50 bg-black/65 backdrop-blur-sm lg:hidden"
           onClick={onCloseMobile}
         />
       )}
 
-      {/* Mobile Drawer */}
       <div
         className={`fixed inset-y-0 left-0 z-50 w-80 max-w-[85vw] transform transition-transform duration-300 ease-in-out lg:hidden ${
           isOpenMobile ? 'translate-x-0' : '-translate-x-full'

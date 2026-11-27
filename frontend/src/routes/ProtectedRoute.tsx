@@ -8,9 +8,9 @@ export const ProtectedRoute: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center space-y-4">
+      <div className="min-h-screen bg-page flex flex-col items-center justify-center space-y-4">
         <Spinner size="lg" />
-        <p className="text-slate-400 text-sm animate-pulse">Authenticating session...</p>
+        <p className="text-ink-secondary text-sm animate-pulse">Authenticating session...</p>
       </div>
     );
   }

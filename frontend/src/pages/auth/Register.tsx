@@ -4,6 +4,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { Input } from '../../components/common/Input';
 import { Button } from '../../components/common/Button';
 import { Card } from '../../components/common/Card';
+import { ThemeToggle } from '../../components/common/ThemeToggle';
 import { Sparkles, Mail, Lock, User, AlertCircle } from 'lucide-react';
 
 export const Register: React.FC = () => {
@@ -36,7 +37,10 @@ export const Register: React.FC = () => {
       await register({ email, password, full_name: fullName });
       navigate('/');
     } catch (err: any) {
-      const message = err.response?.data?.error?.message || err.response?.data?.detail || 'Registration failed';
+      const message =
+        err.response?.data?.error?.message ||
+        err.response?.data?.detail ||
+        'Registration failed';
       setError(message);
     } finally {
       setIsSubmitting(false);
@@ -44,19 +48,23 @@ export const Register: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col justify-center items-center px-4 py-12">
+    <div className="min-h-screen bg-page flex flex-col justify-center items-center px-4 py-12 relative">
+      <div className="absolute top-4 right-4 md:top-6 md:right-6">
+        <ThemeToggle showLabel />
+      </div>
+
       <div className="w-full max-w-md space-y-6">
         <div className="text-center space-y-2">
-          <div className="inline-flex h-12 w-12 rounded-xl bg-indigo-600 items-center justify-center shadow-lg shadow-indigo-600/30 mb-2">
+          <div className="inline-flex h-12 w-12 rounded-[12px] lf-gradient-primary items-center justify-center shadow-card mb-2">
             <Sparkles className="h-6 w-6 text-white" />
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-white">Create an account</h1>
-          <p className="text-sm text-slate-400">Start your personalized AI learning journey</p>
+          <h1 className="lf-heading-main">Create an account</h1>
+          <p className="text-sm text-ink-secondary">Start your personalized AI learning journey</p>
         </div>
 
-        <Card className="p-6 md:p-8 bg-slate-900 border-slate-800">
+        <Card className="p-6 md:p-8">
           {error && (
-            <div className="mb-5 p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-400 text-sm flex items-center gap-2">
+            <div className="mb-5 p-3 rounded-[10px] bg-status-danger-bg border border-status-danger-border text-status-danger-text text-sm flex items-center gap-2">
               <AlertCircle className="h-4 w-4 shrink-0" />
               <span>{error}</span>
             </div>
@@ -113,9 +121,12 @@ export const Register: React.FC = () => {
             </Button>
           </form>
 
-          <div className="mt-6 text-center text-xs text-slate-400">
+          <div className="mt-6 text-center text-xs text-ink-secondary">
             Already have an account?{' '}
-            <Link to="/login" className="text-indigo-400 hover:text-indigo-300 font-semibold underline underline-offset-4">
+            <Link
+              to="/login"
+              className="text-accent hover:text-accent-hover font-semibold underline underline-offset-4"
+            >
               Sign In
             </Link>
           </div>

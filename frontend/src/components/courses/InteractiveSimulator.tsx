@@ -16,7 +16,6 @@ const HTTP_METHOD_INFO: Record<string, { crud: string; safe: string; desc: strin
 };
 
 export const InteractiveSimulator: React.FC<InteractiveSimulatorProps> = ({ simulator }) => {
-  // HTTP Simulator State
   const [method, setMethod] = useState<string>(simulator.default_method || 'GET');
   const [endpoint, setEndpoint] = useState<string>(simulator.default_endpoint || '/creatures');
   const [queryParam, setQueryParam] = useState<string>('');
@@ -34,14 +33,9 @@ export const InteractiveSimulator: React.FC<InteractiveSimulatorProps> = ({ simu
     trace: string[];
   } | null>(null);
 
-  // Layered Simulator State
   const [layerPattern, setLayerPattern] = useState<'clean' | 'bypass'>('clean');
-
-  // Concurrency Simulator State
   const [reqCount, setReqCount] = useState<number>(4);
   const [ioLatency, setIoLatency] = useState<number>(120);
-
-  // API Communication Pattern State
   const [commPattern, setCommPattern] = useState<'library' | 'rpc' | 'http' | 'pubsub' | 'queue'>('http');
 
   if (!simulator) return null;
@@ -258,19 +252,19 @@ export const InteractiveSimulator: React.FC<InteractiveSimulatorProps> = ({ simu
     };
     const active = patterns[commPattern];
     return (
-      <section className="mt-8 rounded-2xl border border-indigo-500/25 bg-slate-950/85 p-5 md:p-6 space-y-4 shadow-xl">
+      <section className="mt-8 rounded-[12px] border border-brand-soft-border bg-subtle p-5 md:p-6 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-400">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-accent">
               Simulated Environment · API Communication
             </span>
-            <h3 className="text-lg font-bold text-white flex items-center gap-2 mt-0.5">
-              <Server className="h-5 w-5 text-indigo-400" />
+            <h3 className="lf-heading-card flex items-center gap-2 mt-0.5">
+              <Server className="h-5 w-5 text-brand" />
               <span>{simulator.title}</span>
             </h3>
-            {simulator.description && <p className="text-xs text-slate-400 mt-0.5">{simulator.description}</p>}
+            {simulator.description && <p className="text-xs text-ink-secondary mt-0.5">{simulator.description}</p>}
           </div>
-          <span className="px-2.5 py-1 rounded-full bg-slate-900 border border-slate-700 text-[11px] text-slate-400">
+          <span className="px-2.5 py-1 rounded-full bg-surface border border-line text-[11px] text-ink-secondary">
             In-Browser Simulation
           </span>
         </div>
@@ -281,10 +275,10 @@ export const InteractiveSimulator: React.FC<InteractiveSimulatorProps> = ({ simu
               key={k}
               type="button"
               onClick={() => setCommPattern(k)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+              className={`px-3 py-1.5 rounded-[10px] text-xs font-semibold border transition-all ${
                 commPattern === k
-                  ? 'bg-indigo-600 text-white border-indigo-400'
-                  : 'bg-slate-900 text-slate-300 border-slate-700 hover:border-slate-600'
+                  ? 'bg-brand text-white border-brand'
+                  : 'bg-surface text-ink-secondary border-line hover:bg-hoverbg hover:text-ink-primary'
               }`}
             >
               {patterns[k].label}
@@ -293,26 +287,26 @@ export const InteractiveSimulator: React.FC<InteractiveSimulatorProps> = ({ simu
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-          <div className="p-3 rounded-xl bg-slate-900 border border-slate-800">
-            <span className="text-slate-400 block">Boundary</span>
-            <strong className="text-slate-100">{active.boundary}</strong>
+          <div className="p-3 rounded-[10px] bg-surface border border-line">
+            <span className="text-ink-secondary block">Boundary</span>
+            <strong className="text-ink-primary">{active.boundary}</strong>
           </div>
-          <div className="p-3 rounded-xl bg-slate-900 border border-slate-800">
-            <span className="text-slate-400 block">Contract / Coupling</span>
-            <strong className="text-slate-100">{active.coupling}</strong>
+          <div className="p-3 rounded-[10px] bg-surface border border-line">
+            <span className="text-ink-secondary block">Contract / Coupling</span>
+            <strong className="text-ink-primary">{active.coupling}</strong>
           </div>
-          <div className="p-3 rounded-xl bg-slate-900 border border-slate-800">
-            <span className="text-slate-400 block">Execution Style</span>
-            <strong className="text-slate-100">{active.blocking}</strong>
+          <div className="p-3 rounded-[10px] bg-surface border border-line">
+            <span className="text-ink-secondary block">Execution Style</span>
+            <strong className="text-ink-primary">{active.blocking}</strong>
           </div>
         </div>
 
-        <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-4 space-y-2 text-xs text-slate-200">
+        <div className="rounded-[12px] border border-line bg-surface p-4 space-y-2 text-xs text-ink-primary">
           {active.steps.map((s, idx) => (
-            <p key={idx} className="font-mono text-indigo-200">{s}</p>
+            <p key={idx} className="font-mono text-brand">{s}</p>
           ))}
-          <p className="text-slate-400 pt-2 border-t border-slate-800">
-            <strong className="text-emerald-300">Trade-off:</strong> {active.tradeoff}
+          <p className="text-ink-secondary pt-2 border-t border-line">
+            <strong className="text-status-success-text">Trade-off:</strong> {active.tradeoff}
           </p>
         </div>
       </section>
@@ -321,26 +315,26 @@ export const InteractiveSimulator: React.FC<InteractiveSimulatorProps> = ({ simu
 
   if (simulator.type === 'layered_architecture') {
     return (
-      <section className="mt-8 rounded-2xl border border-cyan-500/25 bg-slate-950/85 p-5 md:p-6 space-y-4">
+      <section className="mt-8 rounded-[12px] border border-brand-soft-border bg-subtle p-5 md:p-6 space-y-4">
         <div>
-          <span className="text-[11px] font-bold uppercase tracking-wider text-cyan-400">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-accent">
             Interactive Simulation
           </span>
-          <h3 className="text-lg font-bold text-white flex items-center gap-2 mt-0.5">
-            <Layers className="h-5 w-5 text-cyan-400" />
+          <h3 className="lf-heading-card flex items-center gap-2 mt-0.5">
+            <Layers className="h-5 w-5 text-brand" />
             <span>{simulator.title}</span>
           </h3>
-          {simulator.description && <p className="text-xs text-slate-400 mt-1">{simulator.description}</p>}
+          {simulator.description && <p className="text-xs text-ink-secondary mt-1">{simulator.description}</p>}
         </div>
 
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
             onClick={() => setLayerPattern('clean')}
-            className={`px-4 py-2 rounded-xl text-xs font-semibold border transition-all ${
+            className={`px-4 py-2 rounded-[10px] text-xs font-semibold border transition-all ${
               layerPattern === 'clean'
-                ? 'bg-emerald-600/25 border-emerald-500 text-emerald-200'
-                : 'bg-slate-900 border-slate-700 text-slate-300'
+                ? 'bg-status-success-bg border-status-success-border text-status-success-text'
+                : 'bg-surface border-line text-ink-secondary hover:bg-hoverbg hover:text-ink-primary'
             }`}
           >
             Recommended: Web -&gt; Service -&gt; Data
@@ -348,10 +342,10 @@ export const InteractiveSimulator: React.FC<InteractiveSimulatorProps> = ({ simu
           <button
             type="button"
             onClick={() => setLayerPattern('bypass')}
-            className={`px-4 py-2 rounded-xl text-xs font-semibold border transition-all ${
+            className={`px-4 py-2 rounded-[10px] text-xs font-semibold border transition-all ${
               layerPattern === 'bypass'
-                ? 'bg-rose-600/25 border-rose-500 text-rose-200'
-                : 'bg-slate-900 border-slate-700 text-slate-300'
+                ? 'bg-status-danger-bg border-status-danger-border text-status-danger-text'
+                : 'bg-surface border-line text-ink-secondary hover:bg-hoverbg hover:text-ink-primary'
             }`}
           >
             Anti-Pattern: Web -&gt; Direct DB Query
@@ -359,24 +353,24 @@ export const InteractiveSimulator: React.FC<InteractiveSimulatorProps> = ({ simu
         </div>
 
         {layerPattern === 'clean' ? (
-          <div className="p-4 rounded-xl bg-emerald-950/20 border border-emerald-500/30 space-y-2 text-sm">
-            <div className="flex items-center gap-2 font-bold text-emerald-300">
+          <div className="p-4 rounded-[12px] bg-status-success-bg border border-status-success-border space-y-2 text-sm">
+            <div className="flex items-center gap-2 font-bold text-status-success-text">
               <CheckCircle2 className="h-4 w-4" />
               Clean Information Hiding
             </div>
-            <p className="text-slate-200 text-xs md:text-sm leading-relaxed">
+            <p className="text-ink-primary text-xs md:text-sm leading-relaxed">
               1. <strong>Web Layer</strong> validates HTTP params &amp; Pydantic models.<br />
               2. <strong>Service Layer</strong> applies domain rules cleanly without importing HTTP/SQL drivers.<br />
               3. <strong>Data Layer</strong> swaps SQLite/PostgreSQL freely while returning consistent domain Models.
             </p>
           </div>
         ) : (
-          <div className="p-4 rounded-xl bg-rose-950/25 border border-rose-500/30 space-y-2 text-sm">
-            <div className="flex items-center gap-2 font-bold text-rose-300">
+          <div className="p-4 rounded-[12px] bg-status-danger-bg border border-status-danger-border space-y-2 text-sm">
+            <div className="flex items-center gap-2 font-bold text-status-danger-text">
               <AlertTriangle className="h-4 w-4" />
               Layer Violation Detected
             </div>
-            <p className="text-slate-200 text-xs md:text-sm leading-relaxed">
+            <p className="text-ink-primary text-xs md:text-sm leading-relaxed">
               Embedding raw SQL inside FastAPI route handlers couples transport to persistence, leaks database secrets if unprojected, and duplicates validation logic whenever a CLI or background job needs the same operation.
             </p>
           </div>
@@ -390,23 +384,23 @@ export const InteractiveSimulator: React.FC<InteractiveSimulatorProps> = ({ simu
     const asyncTotal = Math.round(ioLatency * 1.15);
     const speedup = (syncTotal / asyncTotal).toFixed(1);
     return (
-      <section className="mt-8 rounded-2xl border border-indigo-500/25 bg-slate-950/85 p-5 md:p-6 space-y-4">
+      <section className="mt-8 rounded-[12px] border border-brand-soft-border bg-subtle p-5 md:p-6 space-y-4">
         <div>
-          <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-400">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-accent">
             Interactive Simulation
           </span>
-          <h3 className="text-lg font-bold text-white flex items-center gap-2 mt-0.5">
-            <Activity className="h-5 w-5 text-indigo-400" />
+          <h3 className="lf-heading-card flex items-center gap-2 mt-0.5">
+            <Activity className="h-5 w-5 text-brand" />
             <span>{simulator.title}</span>
           </h3>
-          {simulator.description && <p className="text-xs text-slate-400 mt-1">{simulator.description}</p>}
+          {simulator.description && <p className="text-xs text-ink-secondary mt-1">{simulator.description}</p>}
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
-            <div className="flex justify-between text-xs text-slate-300">
+          <div className="p-3.5 rounded-[10px] bg-surface border border-line space-y-2">
+            <div className="flex justify-between text-xs text-ink-secondary">
               <span>Concurrent I/O Requests</span>
-              <strong className="text-white">{reqCount}</strong>
+              <strong className="text-ink-primary">{reqCount}</strong>
             </div>
             <input
               type="range"
@@ -414,13 +408,13 @@ export const InteractiveSimulator: React.FC<InteractiveSimulatorProps> = ({ simu
               max={8}
               value={reqCount}
               onChange={(e) => setReqCount(Number(e.target.value))}
-              className="w-full accent-indigo-500"
+              className="w-full accent-brand"
             />
           </div>
-          <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
-            <div className="flex justify-between text-xs text-slate-300">
+          <div className="p-3.5 rounded-[10px] bg-surface border border-line space-y-2">
+            <div className="flex justify-between text-xs text-ink-secondary">
               <span>Per-Request Network/DB Wait</span>
-              <strong className="text-white">{ioLatency} ms</strong>
+              <strong className="text-ink-primary">{ioLatency} ms</strong>
             </div>
             <input
               type="range"
@@ -429,7 +423,7 @@ export const InteractiveSimulator: React.FC<InteractiveSimulatorProps> = ({ simu
               step={10}
               value={ioLatency}
               onChange={(e) => setIoLatency(Number(e.target.value))}
-              className="w-full accent-indigo-500"
+              className="w-full accent-brand"
             />
           </div>
         </div>
@@ -437,20 +431,20 @@ export const InteractiveSimulator: React.FC<InteractiveSimulatorProps> = ({ simu
         <div className="space-y-3 pt-1">
           <div className="space-y-1">
             <div className="flex justify-between text-xs">
-              <span className="text-amber-300 font-semibold">Synchronous Sequential</span>
-              <span className="text-slate-300 font-mono">{syncTotal} ms</span>
+              <span className="text-status-warning-text font-semibold">Synchronous Sequential</span>
+              <span className="text-ink-primary font-mono">{syncTotal} ms</span>
             </div>
-            <div className="h-3 rounded-full bg-slate-900 overflow-hidden">
+            <div className="h-3 rounded-full bg-surface border border-line overflow-hidden">
               <div className="h-full bg-amber-500 rounded-full w-full" />
             </div>
           </div>
 
           <div className="space-y-1">
             <div className="flex justify-between text-xs">
-              <span className="text-emerald-300 font-semibold">Async Event Loop (`await`)</span>
-              <span className="text-slate-300 font-mono">~{asyncTotal} ms ({speedup}x faster throughput)</span>
+              <span className="text-status-success-text font-semibold">Async Event Loop (`await`)</span>
+              <span className="text-ink-primary font-mono">~{asyncTotal} ms ({speedup}x faster throughput)</span>
             </div>
-            <div className="h-3 rounded-full bg-slate-900 overflow-hidden">
+            <div className="h-3 rounded-full bg-surface border border-line overflow-hidden">
               <div
                 className="h-full bg-emerald-500 rounded-full transition-all"
                 style={{ width: `${Math.min(100, Math.round((asyncTotal / syncTotal) * 100))}%` }}
@@ -462,24 +456,23 @@ export const InteractiveSimulator: React.FC<InteractiveSimulatorProps> = ({ simu
     );
   }
 
-  // Default: HTTP Request + REST Method Explorer Simulator
   const methodMeta = HTTP_METHOD_INFO[method] || HTTP_METHOD_INFO.GET;
 
   return (
-    <section className="mt-8 rounded-2xl border border-indigo-500/25 bg-slate-950/85 p-5 md:p-6 space-y-5 shadow-xl">
+    <section className="mt-8 rounded-[12px] border border-brand-soft-border bg-subtle p-5 md:p-6 space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <div>
-          <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-400">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-accent">
             Interactive Experiment
           </span>
-          <h3 className="text-lg font-bold text-white flex items-center gap-2 mt-0.5">
-            <Server className="h-5 w-5 text-indigo-400" />
+          <h3 className="lf-heading-card flex items-center gap-2 mt-0.5">
+            <Server className="h-5 w-5 text-brand" />
             <span>{simulator.title}</span>
           </h3>
-          {simulator.description && <p className="text-xs text-slate-400 mt-0.5">{simulator.description}</p>}
+          {simulator.description && <p className="text-xs text-ink-secondary mt-0.5">{simulator.description}</p>}
         </div>
-        <span className="px-3 py-1 rounded-full bg-slate-900 border border-slate-700 text-xs text-slate-300 font-mono">
-          CRUD: <strong className="text-indigo-300">{methodMeta.crud}</strong> · Safe: {methodMeta.safe}
+        <span className="px-3 py-1 rounded-full bg-surface border border-line text-xs text-ink-secondary font-mono">
+          CRUD: <strong className="text-brand">{methodMeta.crud}</strong> · Safe: {methodMeta.safe}
         </span>
       </div>
 
@@ -497,51 +490,51 @@ export const InteractiveSimulator: React.FC<InteractiveSimulatorProps> = ({ simu
                 setEndpoint('/creatures');
               }
             }}
-            className={`px-3.5 py-1.5 rounded-lg font-mono text-xs font-bold border transition-all ${
+            className={`px-3.5 py-1.5 rounded-[10px] font-mono text-xs font-bold border transition-all ${
               method === m
-                ? 'bg-indigo-600 text-white border-indigo-400'
-                : 'bg-slate-900 text-slate-300 border-slate-700 hover:border-slate-600'
+                ? 'bg-brand text-white border-brand'
+                : 'bg-surface text-ink-secondary border-line hover:bg-hoverbg hover:text-ink-primary'
             }`}
           >
             {m}
           </button>
         ))}
       </div>
-      <p className="text-xs text-slate-400">{methodMeta.desc}</p>
+      <p className="text-xs text-ink-secondary">{methodMeta.desc}</p>
 
       {/* Endpoint & Query Inputs */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="sm:col-span-2">
-          <label className="block text-[11px] font-semibold text-slate-400 mb-1">Endpoint Path</label>
+          <label className="block lf-label-sm mb-1">Endpoint Path</label>
           <input
             type="text"
             value={endpoint}
             onChange={(e) => setEndpoint(e.target.value)}
             placeholder="/creatures or /creatures/yeti"
-            className="w-full rounded-xl bg-slate-900 border border-slate-700 px-3.5 py-2 font-mono text-xs md:text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            className="lf-control w-full px-3.5 py-2 font-mono text-xs md:text-sm"
           />
         </div>
         <div>
-          <label className="block text-[11px] font-semibold text-slate-400 mb-1">Query Params (optional)</label>
+          <label className="block lf-label-sm mb-1">Query Params (optional)</label>
           <input
             type="text"
             value={queryParam}
             onChange={(e) => setQueryParam(e.target.value)}
             placeholder="country=CN"
-            className="w-full rounded-xl bg-slate-900 border border-slate-700 px-3.5 py-2 font-mono text-xs md:text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            className="lf-control w-full px-3.5 py-2 font-mono text-xs md:text-sm"
           />
         </div>
       </div>
 
       {(method === 'POST' || method === 'PUT' || method === 'PATCH') && (
         <div>
-          <label className="block text-[11px] font-semibold text-slate-400 mb-1">JSON Request Body</label>
+          <label className="block lf-label-sm mb-1">JSON Request Body</label>
           <textarea
             rows={4}
             spellCheck={false}
             value={bodyText}
             onChange={(e) => setBodyText(e.target.value)}
-            className="w-full rounded-xl bg-slate-900 border border-slate-700 p-3 font-mono text-xs text-emerald-100 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            className="w-full rounded-[10px] bg-codeblock-bg border border-codeblock-border p-3 font-mono text-xs text-emerald-200 focus:outline-none focus:ring-2 focus:ring-brand"
           />
         </div>
       )}
@@ -553,23 +546,23 @@ export const InteractiveSimulator: React.FC<InteractiveSimulatorProps> = ({ simu
       </div>
 
       {simResponse && (
-        <div className="rounded-xl border border-slate-800 bg-slate-900/90 p-4 space-y-3 text-xs">
+        <div className="rounded-[12px] border border-line bg-surface p-4 space-y-3 text-xs">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span
-              className={`px-2.5 py-1 rounded-md font-mono font-bold ${
+              className={`px-2.5 py-1 rounded-md font-mono font-bold border ${
                 simResponse.status < 300
-                  ? 'bg-emerald-500/20 text-emerald-300'
-                  : 'bg-rose-500/20 text-rose-300'
+                  ? 'bg-status-success-bg border-status-success-border text-status-success-text'
+                  : 'bg-status-danger-bg border-status-danger-border text-status-danger-text'
               }`}
             >
               HTTP {simResponse.status} {simResponse.statusText}
             </span>
-            <span className="font-mono text-slate-400">Content-Type: application/json</span>
+            <span className="font-mono text-ink-secondary">Content-Type: application/json</span>
           </div>
-          <pre className="p-3 rounded-lg bg-slate-950 text-emerald-200 font-mono overflow-x-auto">
+          <pre className="p-3 rounded-[10px] bg-codeblock-bg border border-codeblock-border text-emerald-200 font-mono overflow-x-auto">
             {JSON.stringify(simResponse.body, null, 2)}
           </pre>
-          <div className="space-y-1 text-slate-400 border-t border-slate-800 pt-2">
+          <div className="space-y-1 text-ink-secondary border-t border-line pt-2">
             {simResponse.trace.map((step, i) => (
               <p key={i}>{step}</p>
             ))}

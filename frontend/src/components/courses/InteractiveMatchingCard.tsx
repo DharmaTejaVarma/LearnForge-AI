@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { MatchingExerciseData } from '../../services/courseService';
 import { Shuffle, CheckCircle2, XCircle, RotateCcw } from 'lucide-react';
+import { Button } from '../common/Button';
 
 interface InteractiveMatchingCardProps {
   matching: MatchingExerciseData;
@@ -12,7 +13,6 @@ export const InteractiveMatchingCard: React.FC<InteractiveMatchingCardProps> = (
   const shuffledDescriptions = useMemo(() => {
     const items = pairs.map((p) => ({ id: p.id, description: p.description }));
     if (items.length <= 1) return items;
-    // Deterministic rotation so options don't align 1:1 initially
     return [...items.slice(1), items[0]];
   }, [pairs]);
 
@@ -39,40 +39,42 @@ export const InteractiveMatchingCard: React.FC<InteractiveMatchingCardProps> = (
   const allAssigned = Object.keys(matches).length === pairs.length;
 
   return (
-    <section className="mt-8 rounded-2xl border border-indigo-500/25 bg-slate-950/70 p-5 md:p-6 space-y-4">
+    <section className="mt-8 rounded-[12px] border border-brand-soft-border bg-subtle p-5 md:p-6 space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <div>
-          <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-400 flex items-center gap-1.5">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-accent flex items-center gap-1.5">
             <Shuffle className="h-3.5 w-3.5" />
             Interactive Matching Exercise
           </span>
-          <h3 className="text-lg font-bold text-white mt-0.5">{matching.title}</h3>
-          <p className="text-xs text-slate-400 mt-0.5">{matching.instructions}</p>
+          <h3 className="lf-heading-card mt-0.5">{matching.title}</h3>
+          <p className="text-xs text-ink-secondary mt-0.5">{matching.instructions}</p>
         </div>
 
         <div className="flex items-center gap-2 self-start">
-          <button
+          <Button
             type="button"
+            variant="secondary"
+            size="sm"
             onClick={reset}
-            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-900 border border-slate-700 text-slate-300 hover:text-white"
+            icon={<RotateCcw className="h-3.5 w-3.5" />}
           >
-            <RotateCcw className="h-3.5 w-3.5" />
             Reset
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="primary"
+            size="sm"
             disabled={!allAssigned}
             onClick={() => setChecked(true)}
-            className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             Check Matches
-          </button>
+          </Button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-2">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-secondary">
             1. Select a Concept
           </p>
           {pairs.map((p, idx) => {
@@ -85,20 +87,20 @@ export const InteractiveMatchingCard: React.FC<InteractiveMatchingCardProps> = (
                 key={p.id}
                 type="button"
                 onClick={() => setSelectedTermId(p.id)}
-                className={`w-full text-left p-3 rounded-xl border text-xs md:text-sm transition-all flex items-center justify-between gap-2 ${
+                className={`w-full text-left p-3 rounded-[10px] border text-xs md:text-sm transition-all flex items-center justify-between gap-2 ${
                   isSelected
-                    ? 'bg-indigo-600/25 border-indigo-400 text-white'
+                    ? 'bg-hoverbg border-brand text-ink-primary font-semibold'
                     : isCorrect
-                    ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-200'
+                    ? 'bg-status-success-bg border-status-success-border text-status-success-text'
                     : isWrong
-                    ? 'bg-rose-500/15 border-rose-500/40 text-rose-200'
-                    : 'bg-slate-900/90 border-slate-800 text-slate-200 hover:border-slate-700'
+                    ? 'bg-status-danger-bg border-status-danger-border text-status-danger-text'
+                    : 'bg-surface border-line text-ink-primary hover:border-brand-soft-border'
                 }`}
               >
                 <span className="font-semibold">
                   {idx + 1}. {p.term}
                 </span>
-                <span className="text-[11px] text-slate-400 shrink-0">
+                <span className="text-[11px] text-ink-secondary shrink-0">
                   {assignedDescId
                     ? `→ ${String.fromCharCode(
                         65 + shuffledDescriptions.findIndex((d) => d.id === assignedDescId),
@@ -113,7 +115,7 @@ export const InteractiveMatchingCard: React.FC<InteractiveMatchingCardProps> = (
         </div>
 
         <div className="space-y-2">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-secondary">
             2. Click Matching Description
           </p>
           {shuffledDescriptions.map((d, idx) => {
@@ -125,19 +127,19 @@ export const InteractiveMatchingCard: React.FC<InteractiveMatchingCardProps> = (
                 type="button"
                 onClick={() => handleSelectDescription(d.id)}
                 disabled={!selectedTermId}
-                className={`w-full text-left p-3 rounded-xl border text-xs md:text-sm transition-all ${
+                className={`w-full text-left p-3 rounded-[10px] border text-xs md:text-sm transition-all ${
                   selectedTermId
-                    ? 'bg-slate-900 border-indigo-500/40 hover:bg-indigo-500/10 text-slate-200 cursor-pointer'
-                    : 'bg-slate-900/60 border-slate-800 text-slate-300 cursor-default'
+                    ? 'bg-surface border-brand-soft-border hover:bg-hoverbg text-ink-primary cursor-pointer'
+                    : 'bg-surface border-line text-ink-secondary cursor-default'
                 }`}
               >
                 <div className="flex items-start gap-2">
-                  <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-slate-800 text-[11px] font-bold text-indigo-300">
+                  <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-brand-soft text-[11px] font-bold text-brand">
                     {letter}
                   </span>
-                  <span className="leading-relaxed flex-1">{d.description}</span>
+                  <span className="leading-relaxed flex-1 text-ink-primary">{d.description}</span>
                   {assignedTo && (
-                    <span className="text-[11px] font-semibold text-indigo-300 shrink-0">
+                    <span className="text-[11px] font-semibold text-accent shrink-0">
                       #{pairs.findIndex((p) => p.id === assignedTo) + 1}
                     </span>
                   )}
@@ -150,10 +152,10 @@ export const InteractiveMatchingCard: React.FC<InteractiveMatchingCardProps> = (
 
       {checked && (
         <div
-          className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-semibold border ${
+          className={`flex items-center gap-2 rounded-[10px] px-4 py-2.5 text-xs font-semibold border ${
             correctCount === pairs.length
-              ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300'
-              : 'bg-amber-500/15 border-amber-500/30 text-amber-300'
+              ? 'bg-status-success-bg border-status-success-border text-status-success-text'
+              : 'bg-status-warning-bg border-status-warning-border text-status-warning-text'
           }`}
         >
           {correctCount === pairs.length ? (

@@ -1,5 +1,11 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { User, LoginCredentials, RegisterCredentials, AuthContextType } from '../types/auth';
+import {
+  User,
+  LoginCredentials,
+  ProfileUpdatePayload,
+  RegisterCredentials,
+  AuthContextType,
+} from '../types/auth';
 import { authService } from '../services/authService';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -100,6 +106,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const updateProfile = async (payload: ProfileUpdatePayload): Promise<User> => {
+    const updated = await authService.updateProfile(payload);
+    localStorage.setItem('learnforge_user', JSON.stringify(updated));
+    setUser(updated);
+    return updated;
+  };
+
   const logout = () => {
     localStorage.removeItem('learnforge_token');
     localStorage.removeItem('learnforge_user');
@@ -116,6 +129,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isLoading,
         login,
         register,
+        updateProfile,
         logout,
       }}
     >

@@ -11,20 +11,20 @@ import { Button } from '../common/Button';
 import { Card } from '../common/Card';
 import { Spinner } from '../common/Spinner';
 import { formatSourcePages } from '../../utils/formatters';
-import { 
-  CheckCircle2, 
-  Circle, 
-  FileText, 
-  ListChecks, 
-  ChevronLeft, 
-  ChevronRight, 
+import {
+  CheckCircle2,
+  Circle,
+  FileText,
+  ListChecks,
+  ChevronLeft,
+  ChevronRight,
   ArrowLeft,
   Award,
   BookmarkCheck,
   Sparkles,
   AlertCircle,
   RotateCw,
-  Clock
+  Clock,
 } from 'lucide-react';
 
 interface LessonNavInfo {
@@ -68,9 +68,12 @@ export const LessonContentView: React.FC<LessonContentViewProps> = ({
   onAskTutorHint,
 }) => {
   const [showGrounding, setShowGrounding] = React.useState(false);
-  const formattedPages = lesson.page_start && lesson.page_end
-    ? (lesson.page_start === lesson.page_end ? `PDF Page ${lesson.page_start}` : `PDF Pages ${lesson.page_start}–${lesson.page_end}`)
-    : formatSourcePages(lesson.source_pages);
+  const formattedPages =
+    lesson.page_start && lesson.page_end
+      ? lesson.page_start === lesson.page_end
+        ? `PDF Page ${lesson.page_start}`
+        : `PDF Pages ${lesson.page_start}–${lesson.page_end}`
+      : formatSourcePages(lesson.source_pages);
 
   const printedPageStr =
     lesson.printed_pages && lesson.printed_pages.length > 0
@@ -86,7 +89,7 @@ export const LessonContentView: React.FC<LessonContentViewProps> = ({
         <button
           onClick={onSelectOverview}
           type="button"
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-white transition-colors group"
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-ink-secondary hover:text-ink-primary transition-colors group"
         >
           <ArrowLeft className="h-3.5 w-3.5 group-hover:-translate-x-0.5 transition-transform" />
           <span>Curriculum Overview</span>
@@ -119,20 +122,20 @@ export const LessonContentView: React.FC<LessonContentViewProps> = ({
       </div>
 
       {/* Main Lesson Card */}
-      <Card className="bg-slate-900/90 border-slate-800 p-6 md:p-10 space-y-8 shadow-2xl">
+      <Card className="p-6 md:p-10 space-y-8">
         {/* Lesson Header */}
-        <div className="space-y-4 pb-6 border-b border-slate-800">
+        <div className="space-y-4 pb-6 border-b border-line">
           <div className="flex flex-wrap items-center justify-between gap-3">
             {/* Module Breadcrumb Pill */}
             <div className="flex flex-wrap items-center gap-2 text-xs">
               {chapterTitle && (
-                <span className="px-2.5 py-1 rounded-md bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 font-medium">
+                <span className="px-2.5 py-1 rounded-[10px] bg-brand-soft border border-brand-soft-border text-brand font-medium">
                   {chapterTitle}
                 </span>
               )}
               {topicTitle && (
-                <span className="text-slate-400">
-                  / <span className="text-slate-300">{topicTitle}</span>
+                <span className="text-ink-secondary">
+                  / <span className="text-ink-primary font-medium">{topicTitle}</span>
                 </span>
               )}
             </div>
@@ -140,12 +143,12 @@ export const LessonContentView: React.FC<LessonContentViewProps> = ({
             {/* Status & Mark Complete Button */}
             <div className="flex items-center gap-3">
               {lesson.is_completed ? (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-status-success-bg border border-status-success-border text-status-success-text">
                   <CheckCircle2 className="h-3.5 w-3.5" />
                   Completed
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-slate-800 border border-slate-700 text-slate-400">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-subtle border border-line text-ink-secondary">
                   <Circle className="h-3 w-3" />
                   In Progress
                 </span>
@@ -158,7 +161,7 @@ export const LessonContentView: React.FC<LessonContentViewProps> = ({
                 isLoading={isTogglingComplete}
                 icon={
                   lesson.is_completed ? (
-                    <BookmarkCheck className="h-4 w-4 text-emerald-400" />
+                    <BookmarkCheck className="h-4 w-4 text-status-success-text" />
                   ) : (
                     <CheckCircle2 className="h-4 w-4" />
                   )
@@ -169,27 +172,25 @@ export const LessonContentView: React.FC<LessonContentViewProps> = ({
             </div>
           </div>
 
-          <h1 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight leading-tight">
-            {lesson.title}
-          </h1>
+          <h1 className="lf-heading-main">{lesson.title}</h1>
 
           {/* Source Grounding & Duration Pills */}
           <div className="flex flex-wrap items-center gap-2">
             {(formattedPages || printedPageStr) && (
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-950/40 border border-indigo-500/20 text-indigo-300 text-xs">
-                <FileText className="h-3.5 w-3.5 text-indigo-400 shrink-0" />
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-soft border border-brand-soft-border text-brand text-xs">
+                <FileText className="h-3.5 w-3.5 shrink-0" />
                 <span>
                   <strong>Source:</strong>{' '}
                   {printedPageStr ? `${printedPageStr} (${formattedPages})` : formattedPages}
                 </span>
               </div>
             )}
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-800/80 border border-slate-700 text-slate-300 text-xs">
-              <Clock className="h-3.5 w-3.5 text-indigo-400" />
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-subtle border border-line text-ink-secondary text-xs">
+              <Clock className="h-3.5 w-3.5 text-brand" />
               <span>~{lesson.estimated_minutes || 10} min</span>
             </div>
             {difficultyLevel && (
-              <span className="px-3 py-1 rounded-full bg-purple-500/15 border border-purple-500/30 text-purple-300 text-xs font-semibold capitalize">
+              <span className="px-3 py-1 rounded-full bg-accent-soft border border-accent-soft-border text-accent text-xs font-semibold capitalize">
                 {difficultyLevel}
               </span>
             )}
@@ -197,7 +198,7 @@ export const LessonContentView: React.FC<LessonContentViewProps> = ({
               <button
                 type="button"
                 onClick={() => setShowGrounding((prev) => !prev)}
-                className="px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-emerald-300 text-xs font-semibold hover:bg-emerald-500/20 transition-colors"
+                className="px-3 py-1 rounded-full bg-status-success-bg border border-status-success-border text-status-success-text text-xs font-semibold hover:opacity-85 transition-opacity"
               >
                 {showGrounding ? 'Hide Source Mapping' : 'Source Grounding Map'}
               </button>
@@ -206,49 +207,56 @@ export const LessonContentView: React.FC<LessonContentViewProps> = ({
 
           {/* Source Grounding & Category Legend */}
           {showGrounding && lesson.structured_sections?.grounding_map && (
-            <div className="p-4 rounded-xl bg-slate-950/80 border border-emerald-500/20 space-y-3 text-xs">
+            <div className="p-4 rounded-[12px] bg-subtle border border-line space-y-3 text-xs">
               <div className="flex flex-wrap gap-2">
-                <span className="px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 font-semibold">[SOURCE-BASED] Directly supported by document</span>
-                <span className="px-2 py-0.5 rounded bg-indigo-500/15 text-indigo-300 font-semibold">[SUPPLEMENTARY EXPLANATION] Added examples/walkthroughs</span>
-                <span className="px-2 py-0.5 rounded bg-amber-500/15 text-amber-300 font-semibold">[ADVANCED EXTENSION] Beyond source scope</span>
+                <span className="px-2 py-0.5 rounded bg-status-success-bg text-status-success-text font-semibold">
+                  [SOURCE-BASED] Directly supported by document
+                </span>
+                <span className="px-2 py-0.5 rounded bg-brand-soft text-brand font-semibold">
+                  [SUPPLEMENTARY EXPLANATION] Added examples/walkthroughs
+                </span>
+                <span className="px-2 py-0.5 rounded bg-status-warning-bg text-status-warning-text font-semibold">
+                  [ADVANCED EXTENSION] Beyond source scope
+                </span>
               </div>
-              {lesson.structured_sections.grounding_map.chunks && lesson.structured_sections.grounding_map.chunks.length > 0 && (
-                <div className="space-y-1.5 pt-1 border-t border-slate-800">
-                  <p className="text-slate-400 font-semibold">Retrieved Source Chunks:</p>
-                  {lesson.structured_sections.grounding_map.chunks.map((ch, idx) => (
-                    <div key={idx} className="p-2 rounded bg-slate-900/90 border border-slate-800 text-slate-300">
-                      <span className="text-indigo-300 font-mono mr-2">
-                        [Book p.{ch.printed_page || ch.page_number} / PDF p.{ch.page_number}]
-                      </span>
-                      <span className="text-slate-400">{ch.preview}…</span>
-                    </div>
-                  ))}
-                </div>
-              )}
+              {lesson.structured_sections.grounding_map.chunks &&
+                lesson.structured_sections.grounding_map.chunks.length > 0 && (
+                  <div className="space-y-1.5 pt-2 border-t border-line">
+                    <p className="text-ink-primary font-semibold">Retrieved Source Chunks:</p>
+                    {lesson.structured_sections.grounding_map.chunks.map((ch, idx) => (
+                      <div key={idx} className="p-2.5 rounded-[10px] bg-surface border border-line text-ink-primary">
+                        <span className="text-brand font-mono mr-2 font-medium">
+                          [Book p.{ch.printed_page || ch.page_number} / PDF p.{ch.page_number}]
+                        </span>
+                        <span className="text-ink-secondary">{ch.preview}…</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
             </div>
           )}
         </div>
 
-        {/* Executive Summary Callout (if available) */}
+        {/* Executive Summary Callout */}
         {lesson.summary && (
-          <div className="p-4 md:p-5 rounded-xl bg-slate-950/60 border border-slate-800 text-slate-300 text-sm leading-relaxed space-y-1.5">
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-indigo-400 uppercase tracking-wider">
+          <div className="p-4 md:p-5 rounded-[12px] bg-subtle border border-line text-ink-primary text-sm leading-relaxed space-y-1.5">
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-accent uppercase tracking-wider">
               <Sparkles className="h-3.5 w-3.5" />
               <span>Lesson Overview</span>
             </div>
-            <p className="text-slate-300">{lesson.summary}</p>
+            <p className="text-ink-primary">{lesson.summary}</p>
           </div>
         )}
 
         {/* Failed Generation Banner */}
         {lesson.generation_status === 'failed' && (
-          <div className="p-5 md:p-6 rounded-xl bg-red-950/30 border border-red-500/30 text-red-200 space-y-3">
-            <div className="flex items-center gap-2 font-bold text-red-400">
+          <div className="p-5 md:p-6 rounded-[12px] bg-status-danger-bg border border-status-danger-border text-status-danger-text space-y-3">
+            <div className="flex items-center gap-2 font-bold">
               <AlertCircle className="h-5 w-5 shrink-0" />
               <span>Lesson Generation Incomplete</span>
             </div>
-            <p className="text-sm text-red-300/90 leading-relaxed">
-              {lesson.generation_error || "The AI model encountered an issue while generating this lesson."}
+            <p className="text-sm opacity-90 leading-relaxed">
+              {lesson.generation_error || 'The AI model encountered an issue while generating this lesson.'}
             </p>
             {onRegenerate && (
               <div className="pt-1">
@@ -267,17 +275,24 @@ export const LessonContentView: React.FC<LessonContentViewProps> = ({
         )}
 
         {/* Generating / Queued In-Progress 10-Stage Pipeline Stepper */}
-        {(lesson.generation_status === 'generating' || lesson.generation_status === 'queued') ? (
+        {lesson.generation_status === 'generating' || lesson.generation_status === 'queued' ? (
           <div className="py-10 px-4 max-w-xl mx-auto space-y-5">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
-                <Spinner size="md" className="text-indigo-400 shrink-0" />
+                <Spinner size="md" className="shrink-0" />
                 <div>
-                  <p className="text-sm font-bold text-white">
-                    {lesson.title}: {jobStatus?.current_stage || (lesson.generation_status === 'queued' ? 'Queued for synthesis' : 'Generating lesson content')}
+                  <p className="text-sm font-bold text-ink-primary">
+                    {lesson.title}:{' '}
+                    {jobStatus?.current_stage ||
+                      (lesson.generation_status === 'queued'
+                        ? 'Queued for synthesis'
+                        : 'Generating lesson content')}
                   </p>
-                  <p className="text-xs text-slate-400">
-                    Elapsed: <span className="font-mono text-indigo-300">{Math.round(jobStatus?.elapsed_seconds || 0)}s</span>
+                  <p className="text-xs text-ink-secondary">
+                    Elapsed:{' '}
+                    <span className="font-mono text-brand font-medium">
+                      {Math.round(jobStatus?.elapsed_seconds || 0)}s
+                    </span>
                     {jobStatus?.stage_duration_ms != null && (
                       <span> · Stage: {Math.round(jobStatus.stage_duration_ms / 1000)}s</span>
                     )}
@@ -295,30 +310,36 @@ export const LessonContentView: React.FC<LessonContentViewProps> = ({
 
             {jobStatus?.progress_percentage != null ? (
               <div className="space-y-1">
-                <div className="flex justify-between text-[11px] text-slate-400 font-mono">
-                  <span>Stage {jobStatus.completed_stages ?? 0}/{jobStatus.total_stages ?? 10}</span>
+                <div className="flex justify-between text-[11px] text-ink-secondary font-mono">
+                  <span>
+                    Stage {jobStatus.completed_stages ?? 0}/{jobStatus.total_stages ?? 10}
+                  </span>
                   <span>{jobStatus.progress_percentage}%</span>
                 </div>
-                <div className="w-full h-1.5 rounded-full bg-slate-800 overflow-hidden">
+                <div className="w-full h-1.5 rounded-full bg-subtle overflow-hidden">
                   <div
-                    className="h-full bg-indigo-500 transition-all duration-300 rounded-full"
+                    className="h-full bg-accent transition-all duration-300 rounded-full"
                     style={{ width: `${jobStatus.progress_percentage}%` }}
                   />
                 </div>
               </div>
             ) : (
               <div className="space-y-1">
-                <div className="flex justify-between text-[11px] text-slate-400 font-mono">
-                  <span>{jobStatus?.status === 'GENERATING' ? 'Streaming local LLM inference…' : 'Preparing stage…'}</span>
+                <div className="flex justify-between text-[11px] text-ink-secondary font-mono">
+                  <span>
+                    {jobStatus?.status === 'GENERATING'
+                      ? 'Streaming local LLM inference…'
+                      : 'Preparing stage…'}
+                  </span>
                   <span>In progress</span>
                 </div>
-                <div className="w-full h-1.5 rounded-full bg-slate-800 overflow-hidden">
-                  <div className="h-full w-1/3 bg-indigo-500/80 animate-pulse rounded-full" />
+                <div className="w-full h-1.5 rounded-full bg-subtle overflow-hidden">
+                  <div className="h-full w-1/3 bg-accent animate-pulse rounded-full" />
                 </div>
               </div>
             )}
 
-            <div className="space-y-1.5 rounded-xl bg-slate-950/70 border border-slate-800 p-4 text-xs">
+            <div className="space-y-1.5 rounded-[12px] bg-subtle border border-line p-4 text-xs">
               {[
                 { key: 'CHECKING_CACHE', label: '1. Checking cache' },
                 { key: 'CHECKING_DOCUMENT', label: '2. Checking document readiness' },
@@ -343,7 +364,9 @@ export const LessonContentView: React.FC<LessonContentViewProps> = ({
                   'SAVING',
                   'COMPLETED',
                 ];
-                const curStatus = jobStatus?.status || (lesson.generation_status === 'queued' ? 'CHECKING_CACHE' : 'GENERATING');
+                const curStatus =
+                  jobStatus?.status ||
+                  (lesson.generation_status === 'queued' ? 'CHECKING_CACHE' : 'GENERATING');
                 const rawIdx = order.indexOf(curStatus);
                 const curIdx = rawIdx >= 0 ? rawIdx : 0;
                 const done = idx < curIdx;
@@ -352,10 +375,22 @@ export const LessonContentView: React.FC<LessonContentViewProps> = ({
                   <div key={st.key} className="flex items-center gap-2.5">
                     <span
                       className={`h-2 w-2 rounded-full shrink-0 ${
-                        done ? 'bg-emerald-400' : active ? 'bg-indigo-400 animate-pulse' : 'bg-slate-700'
+                        done
+                          ? 'bg-emerald-500'
+                          : active
+                          ? 'bg-accent animate-pulse'
+                          : 'bg-line-strong'
                       }`}
                     />
-                    <span className={done ? 'text-emerald-300' : active ? 'text-white font-semibold' : 'text-slate-500'}>
+                    <span
+                      className={
+                        done
+                          ? 'text-status-success-text font-medium'
+                          : active
+                          ? 'text-ink-primary font-semibold'
+                          : 'text-ink-secondary'
+                      }
+                    >
                       {st.label}
                     </span>
                   </div>
@@ -363,10 +398,12 @@ export const LessonContentView: React.FC<LessonContentViewProps> = ({
               })}
             </div>
 
-            <div className="flex items-center justify-between text-[11px] text-slate-500">
+            <div className="flex items-center justify-between text-[11px] text-ink-secondary">
               <span>You can navigate to other ready lessons while this lesson synthesizes.</span>
               {jobStatus?.updated_at && (
-                <span className="font-mono">Updated {new Date(jobStatus.updated_at).toLocaleTimeString()}</span>
+                <span className="font-mono">
+                  Updated {new Date(jobStatus.updated_at).toLocaleTimeString()}
+                </span>
               )}
             </div>
           </div>
@@ -379,15 +416,15 @@ export const LessonContentView: React.FC<LessonContentViewProps> = ({
 
             {/* Key Takeaways Section */}
             {lesson.key_takeaways && lesson.key_takeaways.length > 0 && (
-              <div className="mt-8 p-5 md:p-6 rounded-2xl bg-gradient-to-br from-slate-950 to-indigo-950/30 border border-indigo-500/20 space-y-3.5 shadow-lg">
-                <h3 className="text-sm md:text-base font-bold text-white flex items-center gap-2">
-                  <ListChecks className="h-5 w-5 text-emerald-400" />
-                  Key Takeaways
+              <div className="mt-8 p-5 md:p-6 rounded-[12px] bg-brand-soft border border-brand-soft-border space-y-3.5">
+                <h3 className="text-sm md:text-base font-bold text-ink-primary flex items-center gap-2">
+                  <ListChecks className="h-5 w-5 text-brand" />
+                  <span>Key Takeaways</span>
                 </h3>
-                <ul className="space-y-2 text-xs md:text-sm text-slate-300">
+                <ul className="space-y-2 text-xs md:text-sm text-ink-primary">
                   {lesson.key_takeaways.map((takeaway, idx) => (
                     <li key={idx} className="flex items-start gap-2.5">
-                      <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-indigo-500/20 text-[10px] text-indigo-300 font-bold mt-0.5">
+                      <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-brand text-[10px] text-white font-bold mt-0.5">
                         ✓
                       </span>
                       <span className="leading-relaxed">{takeaway}</span>
@@ -440,7 +477,7 @@ export const LessonContentView: React.FC<LessonContentViewProps> = ({
         )}
 
         {/* Bottom Actions & Navigation Bar */}
-        <div className="pt-8 border-t border-slate-800 space-y-6">
+        <div className="pt-8 border-t border-line space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <Button
               variant={lesson.is_completed ? 'secondary' : 'primary'}
@@ -452,7 +489,7 @@ export const LessonContentView: React.FC<LessonContentViewProps> = ({
               {lesson.is_completed ? 'Mark as Incomplete' : 'Mark Lesson as Complete'}
             </Button>
 
-            <span className="text-xs text-slate-400 text-center sm:text-right">
+            <span className="text-xs text-ink-secondary text-center sm:text-right">
               {lesson.is_completed
                 ? '✓ Completed. Ready for the next lesson!'
                 : 'Click when you have finished studying this lesson.'}
@@ -461,47 +498,45 @@ export const LessonContentView: React.FC<LessonContentViewProps> = ({
 
           {/* Prev / Next Lesson Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-            {/* Previous Lesson Card */}
             {prevLesson ? (
               <button
                 type="button"
                 onClick={() => onSelectLesson(prevLesson.id)}
-                className="p-4 rounded-xl border border-slate-800 bg-slate-950/40 hover:bg-slate-800/60 hover:border-slate-700 transition-all text-left flex items-center gap-3 group"
+                className="p-4 rounded-[12px] border border-line bg-subtle hover:bg-hoverbg hover:border-brand-soft-border transition-all text-left flex items-center gap-3 group"
               >
-                <div className="h-9 w-9 rounded-lg bg-slate-800 flex items-center justify-center text-slate-400 group-hover:text-white group-hover:bg-indigo-600 transition-colors shrink-0">
+                <div className="h-9 w-9 rounded-[10px] bg-surface border border-line flex items-center justify-center text-ink-secondary group-hover:text-white group-hover:bg-brand group-hover:border-brand transition-colors shrink-0">
                   <ChevronLeft className="h-5 w-5" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                  <p className="text-[10px] font-semibold text-ink-secondary uppercase tracking-wider">
                     Previous Lesson
                   </p>
-                  <p className="text-xs md:text-sm font-semibold text-slate-200 group-hover:text-white truncate mt-0.5">
+                  <p className="text-xs md:text-sm font-semibold text-ink-primary group-hover:text-brand truncate mt-0.5">
                     {prevLesson.title}
                   </p>
                 </div>
               </button>
             ) : (
-              <div className="p-4 rounded-xl border border-dashed border-slate-800/60 text-slate-500 text-xs flex items-center justify-center">
+              <div className="p-4 rounded-[12px] border border-dashed border-line text-ink-secondary text-xs flex items-center justify-center">
                 First lesson in course
               </div>
             )}
 
-            {/* Next Lesson Card */}
             {nextLesson ? (
               <button
                 type="button"
                 onClick={() => onSelectLesson(nextLesson.id)}
-                className="p-4 rounded-xl border border-indigo-500/30 bg-indigo-950/20 hover:bg-indigo-900/30 hover:border-indigo-500/50 transition-all text-right flex items-center justify-end gap-3 group"
+                className="p-4 rounded-[12px] border border-brand-soft-border bg-brand-soft hover:bg-hoverbg-strong transition-all text-right flex items-center justify-end gap-3 group"
               >
                 <div className="min-w-0">
-                  <p className="text-[10px] font-semibold text-indigo-400 uppercase tracking-wider">
+                  <p className="text-[10px] font-semibold text-accent uppercase tracking-wider">
                     Next Lesson
                   </p>
-                  <p className="text-xs md:text-sm font-semibold text-slate-200 group-hover:text-white truncate mt-0.5">
+                  <p className="text-xs md:text-sm font-semibold text-ink-primary truncate mt-0.5">
                     {nextLesson.title}
                   </p>
                 </div>
-                <div className="h-9 w-9 rounded-lg bg-indigo-600/30 border border-indigo-500/40 flex items-center justify-center text-indigo-300 group-hover:text-white group-hover:bg-indigo-600 transition-colors shrink-0">
+                <div className="h-9 w-9 rounded-[10px] bg-brand flex items-center justify-center text-white group-hover:bg-brand-hover transition-colors shrink-0">
                   <ChevronRight className="h-5 w-5" />
                 </div>
               </button>
@@ -509,17 +544,17 @@ export const LessonContentView: React.FC<LessonContentViewProps> = ({
               <button
                 type="button"
                 onClick={onSelectOverview}
-                className="p-4 rounded-xl border border-emerald-500/30 bg-emerald-950/20 hover:bg-emerald-900/30 text-right flex items-center justify-end gap-3 group"
+                className="p-4 rounded-[12px] border border-status-success-border bg-status-success-bg hover:opacity-90 text-right flex items-center justify-end gap-3 group transition-opacity"
               >
                 <div>
-                  <p className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wider">
+                  <p className="text-[10px] font-semibold text-status-success-text uppercase tracking-wider">
                     Finished Syllabus
                   </p>
-                  <p className="text-xs md:text-sm font-semibold text-emerald-300 mt-0.5">
+                  <p className="text-xs md:text-sm font-semibold text-status-success-text mt-0.5">
                     Back to Course Overview
                   </p>
                 </div>
-                <div className="h-9 w-9 rounded-lg bg-emerald-600/20 flex items-center justify-center text-emerald-400 shrink-0">
+                <div className="h-9 w-9 rounded-[10px] bg-surface border border-status-success-border flex items-center justify-center text-status-success-text shrink-0">
                   <Award className="h-5 w-5" />
                 </div>
               </button>

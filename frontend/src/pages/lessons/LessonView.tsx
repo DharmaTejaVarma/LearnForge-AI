@@ -411,7 +411,7 @@ export const LessonView: React.FC = () => {
     return (
       <div className="py-24 flex flex-col items-center justify-center space-y-4">
         <Spinner size="lg" />
-        <p className="text-sm text-slate-400">Loading structured course syllabus...</p>
+        <p className="text-sm text-ink-secondary">Loading structured course syllabus...</p>
       </div>
     );
   }
@@ -419,11 +419,11 @@ export const LessonView: React.FC = () => {
   if (!course) {
     return (
       <div className="py-16 text-center space-y-4 max-w-md mx-auto">
-        <div className="h-14 w-14 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-center justify-center mx-auto">
+        <div className="h-14 w-14 rounded-[12px] bg-status-danger-bg border border-status-danger-border text-status-danger-text flex items-center justify-center mx-auto">
           <GraduationCap className="h-7 w-7" />
         </div>
-        <h2 className="text-xl font-bold text-white">Course Not Found</h2>
-        <p className="text-xs text-slate-400">
+        <h2 className="lf-heading-section">Course Not Found</h2>
+        <p className="text-xs text-ink-secondary">
           The requested course could not be loaded or was removed.
         </p>
         <Link to="/courses">
@@ -438,19 +438,19 @@ export const LessonView: React.FC = () => {
   return (
     <div className="space-y-5">
       {/* Top Application Bar */}
-      <div className="flex items-center justify-between gap-4 pb-2 border-b border-slate-800/80">
+      <div className="flex items-center justify-between gap-4 pb-3 border-b border-line">
         <div className="flex items-center gap-3 min-w-0">
           <Link
             to="/courses"
-            className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-400 hover:text-white transition-colors shrink-0"
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-ink-secondary hover:text-ink-primary transition-colors shrink-0"
           >
             <ArrowLeft className="h-4 w-4" />
             <span className="hidden sm:inline">All Courses</span>
           </Link>
 
-          <span className="text-slate-700 hidden sm:inline">•</span>
+          <span className="text-line-strong hidden sm:inline">•</span>
 
-          <h1 className="text-sm font-semibold text-slate-200 truncate hidden md:inline">
+          <h1 className="text-sm font-semibold text-ink-primary truncate hidden md:inline">
             {course.title}
           </h1>
         </div>
@@ -465,8 +465,8 @@ export const LessonView: React.FC = () => {
             if (!showProgress || totalLessons === 0) return null;
             const label = genJob?.current_stage || `Synthesizing lessons (${readyLessons}/${totalLessons} ready)`;
             return (
-              <div className="hidden md:flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-950/60 border border-indigo-500/30 text-[11px] text-indigo-200">
-                <Loader2 className="h-3 w-3 animate-spin text-indigo-400 shrink-0" />
+              <div className="hidden md:flex items-center gap-2 px-3 py-1 rounded-full bg-brand-soft border border-brand-soft-border text-[11px] font-medium text-brand">
+                <Loader2 className="h-3 w-3 animate-spin shrink-0" />
                 <span className="truncate max-w-[220px]">{label}</span>
               </div>
             );
@@ -487,7 +487,7 @@ export const LessonView: React.FC = () => {
             variant="ghost"
             className="hidden lg:inline-flex"
             onClick={() => setShowCurriculum((p) => !p)}
-            icon={<Menu className="h-4 w-4 text-slate-400" />}
+            icon={<Menu className="h-4 w-4" />}
           >
             {showCurriculum ? 'Focus Mode' : 'Show Curriculum'}
           </Button>
@@ -497,14 +497,14 @@ export const LessonView: React.FC = () => {
               size="sm"
               variant="secondary"
               onClick={() => setShowToolsPane((p) => !p)}
-              icon={<PanelRight className="h-4 w-4 text-indigo-400" />}
+              icon={<PanelRight className="h-4 w-4 text-accent" />}
             >
               {showToolsPane ? 'Close Notes & Tutor' : 'Notes & AI Tutor'}
             </Button>
           )}
 
           <Link to="/tutor">
-            <Button size="sm" variant="secondary" icon={<Bot className="h-4 w-4 text-indigo-400" />}>
+            <Button size="sm" variant="secondary" icon={<Bot className="h-4 w-4 text-accent" />}>
               <span className="hidden sm:inline">Full AI Tutor</span>
               <span className="sm:hidden">Tutor</span>
             </Button>
@@ -586,7 +586,7 @@ export const LessonView: React.FC = () => {
           ) : !activeLesson ? (
             <div className="py-24 flex flex-col items-center justify-center space-y-4">
               <Spinner size="lg" />
-              <p className="text-sm text-slate-400">Synthesizing lesson content...</p>
+              <p className="text-sm text-ink-secondary">Synthesizing lesson content...</p>
             </div>
           ) : (
             <LessonContentView

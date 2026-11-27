@@ -16,7 +16,7 @@ const Quizzes = lazy(() => import('../pages/quizzes/Quizzes').then((m) => ({ def
 const ProgressView = lazy(() => import('../pages/progress/ProgressView').then((m) => ({ default: m.ProgressView })));
 
 const PageFallback: React.FC = () => (
-  <div className="min-h-[60vh] flex flex-col items-center justify-center gap-3 text-slate-400">
+  <div className="min-h-[60vh] flex flex-col items-center justify-center gap-3 text-ink-secondary">
     <Spinner size="lg" />
     <span className="text-xs font-medium tracking-wide">Loading workspace...</span>
   </div>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ProjectStepData, CodeRunResult, courseService } from '../../services/courseService';
 import { Rocket, CheckCircle2, Copy, Check, RotateCcw, Play, Lightbulb, ChevronDown, ChevronUp } from 'lucide-react';
+import { Button } from '../common/Button';
 
 interface ProjectMilestoneCardProps {
   lessonId: number;
@@ -75,14 +76,14 @@ export const ProjectMilestoneCard: React.FC<ProjectMilestoneCardProps> = ({
   };
 
   return (
-    <section className="mt-8 rounded-2xl border border-emerald-500/25 bg-gradient-to-br from-emerald-950/25 via-slate-950 to-slate-900 p-5 md:p-6 space-y-4">
+    <section className="mt-8 rounded-[12px] border border-brand-soft-border bg-subtle p-5 md:p-6 space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-accent">
             Continuous Course Project · {projectStep.project_name} (Stage {projectStep.step_number})
           </span>
-          <h3 className="text-lg font-bold text-white flex items-center gap-2 mt-0.5">
-            <Rocket className="h-5 w-5 text-emerald-400" />
+          <h3 className="lf-heading-card flex items-center gap-2 mt-0.5">
+            <Rocket className="h-5 w-5 text-brand" />
             <span>{projectStep.milestone_title}</span>
           </h3>
         </div>
@@ -92,8 +93,8 @@ export const ProjectMilestoneCard: React.FC<ProjectMilestoneCardProps> = ({
           onClick={toggleDone}
           className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold border transition-all self-start ${
             done
-              ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
-              : 'bg-slate-900 border-slate-700 text-slate-300 hover:border-emerald-500/40'
+              ? 'bg-status-success-bg border-status-success-border text-status-success-text'
+              : 'bg-surface border-line text-ink-primary hover:border-brand-soft-border'
           }`}
         >
           <CheckCircle2 className="h-4 w-4" />
@@ -102,19 +103,19 @@ export const ProjectMilestoneCard: React.FC<ProjectMilestoneCardProps> = ({
       </div>
 
       {projectStep.learning_objective && (
-        <p className="text-xs text-emerald-300/90 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-2">
+        <p className="text-xs text-brand bg-brand-soft border border-brand-soft-border rounded-[10px] px-3 py-2">
           <span className="font-semibold">Objective: </span>
           {projectStep.learning_objective}
         </p>
       )}
 
-      <p className="text-sm text-slate-200 leading-relaxed">{projectStep.deliverable}</p>
+      <p className="text-sm text-ink-primary leading-relaxed">{projectStep.deliverable}</p>
 
       {projectStep.requirements && projectStep.requirements.length > 0 && (
-        <ul className="space-y-1.5 text-xs text-slate-300 bg-slate-950/60 border border-slate-800/80 rounded-xl p-3.5">
+        <ul className="space-y-1.5 text-xs text-ink-primary bg-surface border border-line rounded-[10px] p-3.5">
           {projectStep.requirements.map((req, idx) => (
             <li key={idx} className="flex items-start gap-2">
-              <span className="text-emerald-400 font-bold">•</span>
+              <span className="text-accent font-bold">•</span>
               <span>{req}</span>
             </li>
           ))}
@@ -122,16 +123,16 @@ export const ProjectMilestoneCard: React.FC<ProjectMilestoneCardProps> = ({
       )}
 
       {projectStep.starter_code && (
-        <div className="rounded-xl border border-slate-800 bg-slate-950 overflow-hidden">
-          <div className="flex items-center justify-between px-3.5 py-2 bg-slate-900 border-b border-slate-800 text-xs">
-            <span className="font-mono text-emerald-300 font-semibold">
+        <div className="rounded-[12px] border border-codeblock-border bg-codeblock-bg overflow-hidden shadow-card">
+          <div className="flex items-center justify-between px-3.5 py-2 bg-codeblock-header border-b border-codeblock-border text-xs">
+            <span className="font-mono text-indigo-300 font-semibold">
               creature_api_step_{projectStep.step_number}.py
             </span>
             <div className="flex items-center gap-3">
               <button
                 type="button"
                 onClick={resetCode}
-                className="inline-flex items-center gap-1 text-slate-400 hover:text-white"
+                className="inline-flex items-center gap-1 text-codeblock-muted hover:text-codeblock-text transition-colors"
               >
                 <RotateCcw className="h-3.5 w-3.5" />
                 <span>Reset</span>
@@ -139,7 +140,7 @@ export const ProjectMilestoneCard: React.FC<ProjectMilestoneCardProps> = ({
               <button
                 type="button"
                 onClick={copyCode}
-                className="inline-flex items-center gap-1 text-slate-300 hover:text-white"
+                className="inline-flex items-center gap-1 text-codeblock-muted hover:text-codeblock-text transition-colors"
               >
                 {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
                 <span>{copied ? 'Copied' : 'Copy'}</span>
@@ -151,21 +152,22 @@ export const ProjectMilestoneCard: React.FC<ProjectMilestoneCardProps> = ({
             spellCheck={false}
             value={code}
             onChange={(e) => handleCodeChange(e.target.value)}
-            className="w-full p-3.5 bg-slate-950 font-mono text-xs md:text-sm text-slate-200 focus:outline-none focus:ring-1 focus:ring-emerald-500/40"
+            className="w-full p-3.5 bg-codeblock-bg font-mono text-xs md:text-sm text-codeblock-text focus:outline-none"
           />
-          <div className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2.5 bg-slate-900/90 border-t border-slate-800">
-            <button
+          <div className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2.5 bg-codeblock-header border-t border-codeblock-border">
+            <Button
               type="button"
+              variant="primary"
+              size="sm"
               onClick={runMilestoneTests}
-              disabled={running}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-50"
+              isLoading={running}
+              icon={<Play className="h-3.5 w-3.5" />}
             >
-              <Play className="h-3.5 w-3.5" />
-              <span>{running ? 'Running...' : 'Run Milestone Tests'}</span>
-            </button>
+              {running ? 'Running...' : 'Run Milestone Tests'}
+            </Button>
             {projectStep.expected_output && (
-              <span className="text-[11px] font-mono text-slate-400">
-                Expected: <span className="text-slate-200">{projectStep.expected_output}</span>
+              <span className="text-[11px] font-mono text-codeblock-muted">
+                Expected: <span className="text-codeblock-text">{projectStep.expected_output}</span>
               </span>
             )}
           </div>
@@ -174,10 +176,10 @@ export const ProjectMilestoneCard: React.FC<ProjectMilestoneCardProps> = ({
 
       {runResult && (
         <div
-          className={`rounded-xl border p-3.5 text-xs space-y-2 ${
+          className={`rounded-[10px] border p-3.5 text-xs space-y-2 ${
             runResult.passed
-              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-200'
-              : 'bg-rose-500/10 border-rose-500/30 text-rose-200'
+              ? 'bg-status-success-bg border-status-success-border text-status-success-text'
+              : 'bg-status-danger-bg border-status-danger-border text-status-danger-text'
           }`}
         >
           <div className="font-semibold">
@@ -186,12 +188,12 @@ export const ProjectMilestoneCard: React.FC<ProjectMilestoneCardProps> = ({
               : `Failed (${runResult.passed_tests}/${runResult.total_tests} tests)`}
           </div>
           {runResult.stdout && (
-            <pre className="p-2 rounded bg-slate-950 text-slate-200 font-mono overflow-x-auto">
+            <pre className="p-2.5 rounded-[10px] bg-codeblock-bg text-codeblock-text font-mono overflow-x-auto">
               {runResult.stdout}
             </pre>
           )}
           {runResult.stderr && (
-            <pre className="p-2 rounded bg-slate-950 text-rose-300 font-mono overflow-x-auto">
+            <pre className="p-2.5 rounded-[10px] bg-codeblock-bg text-rose-300 font-mono overflow-x-auto">
               {runResult.stderr}
             </pre>
           )}
@@ -204,7 +206,7 @@ export const ProjectMilestoneCard: React.FC<ProjectMilestoneCardProps> = ({
             <button
               type="button"
               onClick={() => setShowHints((v) => !v)}
-              className="inline-flex items-center gap-1.5 text-xs text-amber-300 hover:text-amber-200"
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-status-warning-text hover:opacity-80"
             >
               <Lightbulb className="h-3.5 w-3.5" />
               <span>{showHints ? 'Hide Hints' : 'Show Hints'}</span>
@@ -214,7 +216,7 @@ export const ProjectMilestoneCard: React.FC<ProjectMilestoneCardProps> = ({
             <button
               type="button"
               onClick={() => setShowExplanation((v) => !v)}
-              className="inline-flex items-center gap-1 text-xs text-indigo-300 hover:text-indigo-200"
+              className="inline-flex items-center gap-1 text-xs font-medium text-accent hover:text-accent-hover"
             >
               {showExplanation ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
               <span>{showExplanation ? 'Hide Architecture Note' : 'Architecture Note'}</span>
@@ -224,7 +226,7 @@ export const ProjectMilestoneCard: React.FC<ProjectMilestoneCardProps> = ({
       )}
 
       {showHints && projectStep.hints && projectStep.hints.length > 0 && (
-        <ul className="space-y-1 text-xs text-amber-200/90 bg-amber-500/10 border border-amber-500/20 rounded-xl p-3">
+        <ul className="space-y-1 text-xs text-status-warning-text bg-status-warning-bg border border-status-warning-border rounded-[10px] p-3">
           {projectStep.hints.map((h, i) => (
             <li key={i}>• {h}</li>
           ))}
@@ -232,7 +234,7 @@ export const ProjectMilestoneCard: React.FC<ProjectMilestoneCardProps> = ({
       )}
 
       {showExplanation && projectStep.explanation && (
-        <p className="text-xs text-slate-300 bg-slate-950/70 border border-slate-800 rounded-xl p-3 leading-relaxed">
+        <p className="text-xs text-ink-primary bg-surface border border-line rounded-[10px] p-3 leading-relaxed">
           {projectStep.explanation}
         </p>
       )}

@@ -126,21 +126,21 @@ export const LessonToolsSidebar: React.FC<LessonToolsSidebarProps> = ({
     <>
       {onClose && (
         <div
-          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-[1px]"
+          className="fixed inset-0 z-40 bg-black/45 backdrop-blur-[1px]"
           onClick={onClose}
         />
       )}
-      <aside className="fixed top-16 right-0 bottom-0 z-50 flex flex-col w-96 max-w-[92vw] border-l border-slate-800 bg-slate-900 overflow-hidden shadow-2xl">
+      <aside className="fixed top-16 right-0 bottom-0 z-50 flex flex-col w-96 max-w-[92vw] border-l border-line bg-surface overflow-hidden shadow-modal">
         {/* Top Switch Tabs + Close */}
-        <div className="flex items-center gap-1.5 border-b border-slate-800 bg-slate-950/80 p-2">
+        <div className="flex items-center gap-1.5 border-b border-line bg-subtle p-2">
           <div className="grid grid-cols-2 flex-1 gap-1">
             <button
               type="button"
               onClick={() => onTabChange('outline')}
-              className={`flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold transition-all ${
+              className={`flex items-center justify-center gap-1.5 py-2 rounded-[10px] text-xs font-semibold transition-all ${
                 activeTab === 'outline'
-                  ? 'bg-indigo-600 text-white shadow'
-                  : 'text-slate-400 hover:text-white'
+                  ? 'bg-brand text-white shadow-sm'
+                  : 'text-ink-secondary hover:text-ink-primary hover:bg-hoverbg'
               }`}
             >
               <List className="h-3.5 w-3.5" />
@@ -150,10 +150,10 @@ export const LessonToolsSidebar: React.FC<LessonToolsSidebarProps> = ({
             <button
               type="button"
               onClick={() => onTabChange('tutor')}
-              className={`flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold transition-all ${
+              className={`flex items-center justify-center gap-1.5 py-2 rounded-[10px] text-xs font-semibold transition-all ${
                 activeTab === 'tutor'
-                  ? 'bg-indigo-600 text-white shadow'
-                  : 'text-slate-400 hover:text-white'
+                  ? 'bg-brand text-white shadow-sm'
+                  : 'text-ink-secondary hover:text-ink-primary hover:bg-hoverbg'
               }`}
             >
               <Bot className="h-3.5 w-3.5" />
@@ -164,7 +164,7 @@ export const LessonToolsSidebar: React.FC<LessonToolsSidebarProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
+              className="p-2 rounded-[10px] text-ink-secondary hover:text-ink-primary hover:bg-hoverbg transition-colors"
               aria-label="Close study tools"
             >
               <X className="h-4 w-4" />
@@ -172,194 +172,194 @@ export const LessonToolsSidebar: React.FC<LessonToolsSidebarProps> = ({
           )}
         </div>
 
-      {activeTab === 'outline' ? (
-        <div className="flex-1 overflow-y-auto p-4 space-y-5">
-          {/* Bookmark Action */}
-          <button
-            type="button"
-            onClick={() => {
-              const next = !isBookmarked;
-              setIsBookmarked(next);
-              handleSaveNote(next);
-            }}
-            className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl border text-xs font-semibold transition-all ${
-              isBookmarked
-                ? 'bg-amber-500/15 border-amber-500/30 text-amber-300'
-                : 'bg-slate-950/60 border-slate-800 text-slate-300 hover:border-slate-700'
-            }`}
-          >
-            <span className="flex items-center gap-2">
-              {isBookmarked ? (
-                <BookmarkCheck className="h-4 w-4 text-amber-400" />
-              ) : (
-                <Bookmark className="h-4 w-4 text-slate-400" />
-              )}
-              {isBookmarked ? 'Bookmarked Lesson' : 'Bookmark Lesson'}
-            </span>
-          </button>
-
-          {/* Lesson TOC */}
-          {tocItems.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                On This Page
-              </p>
-              <nav className="space-y-1">
-                {tocItems.map((item, idx) => (
-                  <a
-                    key={idx}
-                    href={`#${item.slug}`}
-                    className="block px-2.5 py-1.5 rounded-lg text-xs text-slate-300 hover:bg-slate-800 hover:text-white transition-colors truncate"
-                  >
-                    {item.title}
-                  </a>
-                ))}
-                {(lesson.exercises?.length || 0) > 0 && (
-                  <a
-                    href="#practice-exercises"
-                    className="block px-2.5 py-1.5 rounded-lg text-xs text-indigo-300 hover:bg-indigo-950/60 font-medium transition-colors"
-                  >
-                    Practice Exercises ({lesson.exercises?.length})
-                  </a>
+        {activeTab === 'outline' ? (
+          <div className="flex-1 overflow-y-auto p-4 space-y-5">
+            {/* Bookmark Action */}
+            <button
+              type="button"
+              onClick={() => {
+                const next = !isBookmarked;
+                setIsBookmarked(next);
+                handleSaveNote(next);
+              }}
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-[10px] border text-xs font-semibold transition-all ${
+                isBookmarked
+                  ? 'bg-status-warning-bg border-status-warning-border text-status-warning-text'
+                  : 'bg-subtle border-line text-ink-primary hover:bg-hoverbg hover:border-brand-soft-border'
+              }`}
+            >
+              <span className="flex items-center gap-2">
+                {isBookmarked ? (
+                  <BookmarkCheck className="h-4 w-4" />
+                ) : (
+                  <Bookmark className="h-4 w-4 text-ink-secondary" />
                 )}
-              </nav>
-            </div>
-          )}
+                {isBookmarked ? 'Bookmarked Lesson' : 'Bookmark Lesson'}
+              </span>
+            </button>
 
-          {/* Learning Objectives */}
-          {lesson.learning_objectives && lesson.learning_objectives.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                <Target className="h-3.5 w-3.5 text-indigo-400" />
-                Objectives
-              </p>
-              <ul className="space-y-1.5 text-xs text-slate-300">
-                {lesson.learning_objectives.slice(0, 3).map((obj, idx) => (
-                  <li key={idx} className="leading-relaxed flex items-start gap-2">
-                    <span className="text-indigo-400 mt-0.5">•</span>
-                    <span>{obj}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+            {/* Lesson TOC */}
+            {tocItems.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-ink-secondary">
+                  On This Page
+                </p>
+                <nav className="space-y-1">
+                  {tocItems.map((item, idx) => (
+                    <a
+                      key={idx}
+                      href={`#${item.slug}`}
+                      className="block px-2.5 py-1.5 rounded-[10px] text-xs text-ink-secondary hover:bg-hoverbg hover:text-ink-primary transition-colors truncate"
+                    >
+                      {item.title}
+                    </a>
+                  ))}
+                  {(lesson.exercises?.length || 0) > 0 && (
+                    <a
+                      href="#practice-exercises"
+                      className="block px-2.5 py-1.5 rounded-[10px] text-xs text-accent hover:bg-hoverbg font-medium transition-colors"
+                    >
+                      Practice Exercises ({lesson.exercises?.length})
+                    </a>
+                  )}
+                </nav>
+              </div>
+            )}
 
-          {/* Personal Study Notes */}
-          <div className="space-y-2 pt-2 border-t border-slate-800">
-            <div className="flex items-center justify-between">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                Personal Notes
-              </p>
-              {noteStatus === 'saved' && (
-                <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 font-semibold">
-                  <Check className="h-3 w-3" /> Saved
-                </span>
+            {/* Learning Objectives */}
+            {lesson.learning_objectives && lesson.learning_objectives.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-ink-secondary flex items-center gap-1.5">
+                  <Target className="h-3.5 w-3.5 text-brand" />
+                  Objectives
+                </p>
+                <ul className="space-y-1.5 text-xs text-ink-primary">
+                  {lesson.learning_objectives.slice(0, 3).map((obj, idx) => (
+                    <li key={idx} className="leading-relaxed flex items-start gap-2">
+                      <span className="text-accent mt-0.5">•</span>
+                      <span>{obj}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Personal Study Notes */}
+            <div className="space-y-2 pt-3 border-t border-line">
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-ink-secondary">
+                  Personal Notes
+                </p>
+                {noteStatus === 'saved' && (
+                  <span className="inline-flex items-center gap-1 text-[10px] text-status-success-text font-semibold">
+                    <Check className="h-3 w-3" /> Saved
+                  </span>
+                )}
+              </div>
+              <textarea
+                rows={6}
+                value={noteText}
+                onChange={(e) => setNoteText(e.target.value)}
+                placeholder="Write key insights, doubts, or snippets..."
+                className="lf-control w-full p-3 text-xs resize-y"
+              />
+              <Button
+                size="sm"
+                variant="secondary"
+                className="w-full"
+                isLoading={noteStatus === 'saving'}
+                onClick={() => handleSaveNote()}
+              >
+                Save Notes
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex-1 flex flex-col min-h-0">
+            {/* Quick Mode Chips */}
+            <div className="p-3 border-b border-line flex flex-wrap gap-1.5">
+              {[
+                { label: 'Explain simply', mode: 'explain_simple', q: `Explain "${lesson.title}" in simple beginner-friendly terms.` },
+                { label: 'Explain code', mode: 'explain_code', q: `Walk through the code mechanics in "${lesson.title}" step by step.` },
+                { label: 'Practice Q', mode: 'practice_question', q: `Quiz me with one short check question on "${lesson.title}".` },
+              ].map((chip) => (
+                <button
+                  key={chip.mode}
+                  type="button"
+                  disabled={isAsking}
+                  onClick={() => sendTutorQuery(chip.q, chip.mode)}
+                  className="px-2.5 py-1 rounded-full bg-subtle hover:bg-hoverbg border border-line hover:border-brand-soft-border text-[11px] text-ink-primary transition-colors"
+                >
+                  {chip.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Chat Messages */}
+            <div className="flex-1 overflow-y-auto p-3 space-y-3">
+              {messages.length === 0 ? (
+                <div className="text-center py-8 px-3 space-y-2">
+                  <Sparkles className="h-6 w-6 text-accent mx-auto" />
+                  <p className="text-xs font-semibold text-ink-primary">
+                    Lesson-Aware AI Tutor
+                  </p>
+                  <p className="text-[11px] text-ink-secondary leading-relaxed">
+                    Ask anything about <strong>{lesson.title}</strong> or click a quick prompt above.
+                  </p>
+                </div>
+              ) : (
+                messages.map((m, i) => (
+                  <div
+                    key={i}
+                    className={`p-3 rounded-[12px] text-xs leading-relaxed ${
+                      m.role === 'user'
+                        ? 'bg-brand text-white ml-4'
+                        : 'bg-subtle border border-line text-ink-primary mr-2'
+                    }`}
+                  >
+                    {m.role === 'assistant' ? (
+                      <MarkdownRenderer content={m.content} className="prose-xs" />
+                    ) : (
+                      <span>{m.content}</span>
+                    )}
+                  </div>
+                ))
+              )}
+              {isAsking && (
+                <div className="p-2.5 rounded-[10px] bg-subtle border border-line text-[11px] text-brand animate-pulse">
+                  Thinking with lesson &amp; source context...
+                </div>
               )}
             </div>
-            <textarea
-              rows={6}
-              value={noteText}
-              onChange={(e) => setNoteText(e.target.value)}
-              placeholder="Write key insights, doubts, or snippets..."
-              className="w-full rounded-xl bg-slate-950 border border-slate-800 p-3 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-y"
-            />
-            <Button
-              size="sm"
-              variant="secondary"
-              className="w-full"
-              isLoading={noteStatus === 'saving'}
-              onClick={() => handleSaveNote()}
+
+            {/* Input Box */}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                sendTutorQuery(question);
+              }}
+              className="p-3 border-t border-line flex items-center gap-2 bg-subtle"
             >
-              Save Notes
-            </Button>
-          </div>
-        </div>
-      ) : (
-        <div className="flex-1 flex flex-col min-h-0">
-          {/* Quick Mode Chips */}
-          <div className="p-3 border-b border-slate-800 flex flex-wrap gap-1.5">
-            {[
-              { label: 'Explain simply', mode: 'explain_simple', q: `Explain "${lesson.title}" in simple beginner-friendly terms.` },
-              { label: 'Explain code', mode: 'explain_code', q: `Walk through the code mechanics in "${lesson.title}" step by step.` },
-              { label: 'Practice Q', mode: 'practice_question', q: `Quiz me with one short check question on "${lesson.title}".` },
-            ].map((chip) => (
-              <button
-                key={chip.mode}
-                type="button"
-                disabled={isAsking}
-                onClick={() => sendTutorQuery(chip.q, chip.mode)}
-                className="px-2.5 py-1 rounded-full bg-slate-800 hover:bg-indigo-600/30 border border-slate-700 text-[11px] text-slate-200 transition-colors"
+              <input
+                type="text"
+                value={question}
+                onChange={(e) => setQuestion(e.target.value)}
+                placeholder="Ask about this lesson..."
+                className="lf-control flex-1 px-3 py-2 text-xs"
+              />
+              <Button
+                size="sm"
+                variant="primary"
+                type="submit"
+                disabled={!question.trim() || isAsking}
+                icon={<Send className="h-3.5 w-3.5" />}
               >
-                {chip.label}
-              </button>
-            ))}
+                Ask
+              </Button>
+            </form>
           </div>
-
-          {/* Chat Messages */}
-          <div className="flex-1 overflow-y-auto p-3 space-y-3">
-            {messages.length === 0 ? (
-              <div className="text-center py-8 px-3 space-y-2">
-                <Sparkles className="h-6 w-6 text-indigo-400 mx-auto" />
-                <p className="text-xs font-semibold text-slate-200">
-                  Lesson-Aware AI Tutor
-                </p>
-                <p className="text-[11px] text-slate-400 leading-relaxed">
-                  Ask anything about <strong>{lesson.title}</strong> or click a quick prompt above.
-                </p>
-              </div>
-            ) : (
-              messages.map((m, i) => (
-                <div
-                  key={i}
-                  className={`p-3 rounded-xl text-xs leading-relaxed ${
-                    m.role === 'user'
-                      ? 'bg-indigo-600/25 border border-indigo-500/30 text-white ml-4'
-                      : 'bg-slate-950/90 border border-slate-800 text-slate-200 mr-2'
-                  }`}
-                >
-                  {m.role === 'assistant' ? (
-                    <MarkdownRenderer content={m.content} className="prose-xs" />
-                  ) : (
-                    <span>{m.content}</span>
-                  )}
-                </div>
-              ))
-            )}
-            {isAsking && (
-              <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 text-[11px] text-indigo-300 animate-pulse">
-                Thinking with lesson &amp; source context...
-              </div>
-            )}
-          </div>
-
-          {/* Input Box */}
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              sendTutorQuery(question);
-            }}
-            className="p-3 border-t border-slate-800 flex items-center gap-2 bg-slate-950/80"
-          >
-            <input
-              type="text"
-              value={question}
-              onChange={(e) => setQuestion(e.target.value)}
-              placeholder="Ask about this lesson..."
-              className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-            />
-            <Button
-              size="sm"
-              variant="primary"
-              type="submit"
-              disabled={!question.trim() || isAsking}
-              icon={<Send className="h-3.5 w-3.5" />}
-            >
-              Ask
-            </Button>
-          </form>
-        </div>
-      )}
-    </aside>
+        )}
+      </aside>
     </>
   );
 };

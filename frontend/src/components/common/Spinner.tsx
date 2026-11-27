@@ -13,7 +13,7 @@ export const Spinner: React.FC<{ size?: 'sm' | 'md' | 'lg'; className?: string }
   return (
     <div className="flex items-center justify-center p-4">
       <svg
-        className={`animate-spin text-indigo-500 ${sizes[size]} ${className}`}
+        className={`animate-spin text-brand ${sizes[size]} ${className}`}
         xmlns="http://www.w3.org/2000/svg"
         fill="none"
         viewBox="0 0 24 24"

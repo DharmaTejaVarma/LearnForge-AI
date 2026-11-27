@@ -6,17 +6,17 @@ import { learningService, Citation } from '../../services/learningService';
 import { courseService, Course } from '../../services/courseService';
 import { documentService, UploadedDocument } from '../../services/documentService';
 import { formatDocumentTitle } from '../../utils/formatters';
-import { 
-  Bot, 
-  Send, 
-  User, 
+import {
+  Bot,
+  Send,
+  User,
   FileText,
   Trash2,
   Plus,
   Sparkles,
   BookOpen,
   HelpCircle,
-  GraduationCap
+  GraduationCap,
 } from 'lucide-react';
 
 interface ChatMessage {
@@ -75,10 +75,10 @@ export const TutorChat: React.FC = () => {
       setSuggestedQuestions(suggestions);
     } catch (err) {
       setSuggestedQuestions([
-        "Explain the key concepts of this course.",
-        "Give me a practical real-world example.",
-        "What are the most important formulas or principles?",
-        "Test my understanding with a conceptual practice question.",
+        'Explain the key concepts of this course.',
+        'Give me a practical real-world example.',
+        'What are the most important formulas or principles?',
+        'Test my understanding with a conceptual practice question.',
       ]);
     }
   }, [selectedCourseId]);
@@ -112,7 +112,7 @@ export const TutorChat: React.FC = () => {
             {
               id: 'welcome',
               sender: 'tutor',
-              text: "Welcome back! Here is your active dialogue. What would you like to explore next?",
+              text: 'Welcome back! Here is your active dialogue. What would you like to explore next?',
             },
             ...loadedMsgs,
           ]);
@@ -151,7 +151,6 @@ export const TutorChat: React.FC = () => {
         conversationId,
       );
 
-      // Keep conversationId synchronized
       if (res.conversation_id) {
         setConversationId(res.conversation_id);
       }
@@ -168,7 +167,7 @@ export const TutorChat: React.FC = () => {
       };
       setMessages((prev) => [...prev, tutorMsg]);
     } catch (err: any) {
-      const msg = err.response?.data?.error?.message || err.response?.data?.detail || err.message || "Failed to reach AI Tutor.";
+      const msg = err.response?.data?.error?.message || err.response?.data?.detail || err.message || 'Failed to reach AI Tutor.';
       const errMsg: ChatMessage = {
         id: Math.random().toString(36).substring(7),
         sender: 'tutor',
@@ -187,13 +186,13 @@ export const TutorChat: React.FC = () => {
       {
         id: 'welcome_new',
         sender: 'tutor',
-        text: "Started a fresh conversation session. What concept would you like to study today?",
+        text: 'Started a fresh conversation session. What concept would you like to study today?',
       },
     ]);
   };
 
   const handleClearHistory = async () => {
-    if (!window.confirm("Clear all conversation history for this course?")) return;
+    if (!window.confirm('Clear all conversation history for this course?')) return;
     try {
       await learningService.clearTutorHistory(selectedDocId, selectedCourseId);
       handleStartNewChat();
@@ -207,21 +206,23 @@ export const TutorChat: React.FC = () => {
   return (
     <div className="h-[calc(100vh-8rem)] flex flex-col space-y-4 max-w-5xl mx-auto animate-fadeIn">
       {/* Top Application Header: Context Scope & Action Controls */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between pb-3 border-b border-slate-800 gap-3">
+      <div className="flex flex-col md:flex-row md:items-center justify-between pb-3 border-b border-line gap-3">
         <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-lg shadow-indigo-600/30 shrink-0">
+          <div className="h-10 w-10 rounded-[10px] lf-gradient-primary flex items-center justify-center text-white shadow-card shrink-0">
             <Bot className="h-5 w-5" />
           </div>
           <div>
-            <h1 className="text-xl font-extrabold text-white tracking-tight flex items-center gap-2">
-              Socratic AI Tutor
+            <h1 className="lf-heading-section flex flex-wrap items-center gap-2">
+              <span>Socratic AI Tutor</span>
               {activeCourse && (
-                <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-300">
+                <span className="text-xs font-medium px-2.5 py-0.5 rounded-full bg-brand-soft border border-brand-soft-border text-brand">
                   {activeCourse.title}
                 </span>
               )}
             </h1>
-            <p className="text-xs text-slate-400">Contextual dialogue, intent routing, and verified page citations</p>
+            <p className="text-xs text-ink-secondary">
+              Contextual dialogue, intent routing, and verified page citations
+            </p>
           </div>
         </div>
 
@@ -229,8 +230,8 @@ export const TutorChat: React.FC = () => {
           {/* Course Scope Selector */}
           {courses.length > 0 && (
             <div className="flex items-center gap-1.5">
-              <span className="text-xs text-slate-400 flex items-center gap-1">
-                <GraduationCap className="h-3.5 w-3.5 text-indigo-400" />
+              <span className="text-xs text-ink-secondary flex items-center gap-1">
+                <GraduationCap className="h-3.5 w-3.5 text-brand" />
                 Course:
               </span>
               <select
@@ -239,7 +240,7 @@ export const TutorChat: React.FC = () => {
                   setSelectedCourseId(e.target.value ? Number(e.target.value) : undefined);
                   handleStartNewChat();
                 }}
-                className="bg-slate-900 border border-slate-700 text-xs rounded-xl px-2.5 py-1.5 text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500 max-w-[180px] truncate"
+                className="lf-control text-xs px-2.5 py-1.5 max-w-[180px] truncate"
               >
                 <option value="">All Courses</option>
                 {courses.map((c) => (
@@ -254,8 +255,8 @@ export const TutorChat: React.FC = () => {
           {/* Document Scope Selector */}
           {documents.length > 0 && (
             <div className="flex items-center gap-1.5">
-              <span className="text-xs text-slate-400 flex items-center gap-1">
-                <BookOpen className="h-3.5 w-3.5 text-purple-400" />
+              <span className="text-xs text-ink-secondary flex items-center gap-1">
+                <BookOpen className="h-3.5 w-3.5 text-accent" />
                 Doc:
               </span>
               <select
@@ -264,7 +265,7 @@ export const TutorChat: React.FC = () => {
                   setSelectedDocId(e.target.value ? Number(e.target.value) : undefined);
                   handleStartNewChat();
                 }}
-                className="bg-slate-900 border border-slate-700 text-xs rounded-xl px-2.5 py-1.5 text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500 max-w-[150px] truncate"
+                className="lf-control text-xs px-2.5 py-1.5 max-w-[150px] truncate"
               >
                 <option value="">All Uploads</option>
                 {documents.map((d) => (
@@ -292,7 +293,7 @@ export const TutorChat: React.FC = () => {
             <button
               onClick={handleClearHistory}
               title="Clear all conversation history"
-              className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition-colors text-xs flex items-center gap-1 border border-slate-700/50"
+              className="p-2 text-ink-secondary hover:text-status-danger-text hover:bg-status-danger-bg rounded-[10px] transition-colors text-xs flex items-center gap-1 border border-line"
             >
               <Trash2 className="h-3.5 w-3.5" />
             </button>
@@ -308,16 +309,16 @@ export const TutorChat: React.FC = () => {
             className={`flex items-start gap-3.5 ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             {msg.sender === 'tutor' && (
-              <div className="h-8 w-8 rounded-xl bg-indigo-600/90 border border-indigo-500/30 flex items-center justify-center text-white shrink-0 shadow mt-1">
+              <div className="h-8 w-8 rounded-[10px] lf-gradient-primary flex items-center justify-center text-white shrink-0 shadow-sm mt-1">
                 <Bot className="h-4 w-4" />
               </div>
             )}
 
             <div
-              className={`max-w-3xl rounded-2xl p-5 text-sm leading-relaxed shadow-xl ${
+              className={`max-w-3xl rounded-[12px] p-5 text-[15px] leading-relaxed ${
                 msg.sender === 'user'
-                  ? 'bg-indigo-600 text-white rounded-tr-none shadow-indigo-600/20'
-                  : 'bg-slate-900/95 border border-slate-800 text-slate-200 rounded-tl-none space-y-4'
+                  ? 'bg-brand text-white rounded-tr-none shadow-card'
+                  : 'lf-card text-ink-primary rounded-tl-none space-y-4'
               }`}
             >
               {msg.sender === 'user' ? (
@@ -328,8 +329,8 @@ export const TutorChat: React.FC = () => {
 
                   {/* Verified Citations List */}
                   {msg.citations && msg.citations.length > 0 && (
-                    <div className="pt-3 border-t border-slate-800 space-y-2">
-                      <p className="text-[11px] font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <div className="pt-3 border-t border-line space-y-2">
+                      <p className="text-[11px] font-semibold text-accent uppercase tracking-wider flex items-center gap-1.5">
                         <FileText className="h-3.5 w-3.5" />
                         Verified Grounding References:
                       </p>
@@ -337,51 +338,51 @@ export const TutorChat: React.FC = () => {
                         {msg.citations.map((c, idx) => (
                           <span
                             key={idx}
-                            className="inline-flex items-center gap-1 text-[11px] bg-slate-800/80 text-indigo-300 px-2.5 py-1 rounded-lg border border-slate-700/80 font-mono shadow-sm"
+                            className="inline-flex items-center gap-1 text-[11px] bg-subtle text-brand px-2.5 py-1 rounded-[10px] border border-line font-mono"
                           >
                             <span>{formatDocumentTitle(c.filename || 'Curriculum')}</span>
-                            <span className="text-slate-500">•</span>
-                            <span className="text-white font-semibold">Page {c.page_number}</span>
+                            <span className="text-ink-secondary">•</span>
+                            <span className="text-ink-primary font-semibold">Page {c.page_number}</span>
                           </span>
                         ))}
                       </div>
                     </div>
                   )}
 
-                  {/* Supplementary Resource Recommendations (distinguishing document vs general guidance) */}
+                  {/* Supplementary Resource Recommendations */}
                   {msg.resources && msg.resources.length > 0 && (
                     <div className="pt-2 space-y-1.5">
-                      <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                        Study Resources & References
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-secondary">
+                        Study Resources &amp; References
                       </p>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         {msg.resources.slice(0, 2).map((r, rIdx) => (
                           <div
                             key={rIdx}
-                            className="p-2.5 rounded-lg bg-slate-950/60 border border-slate-800 text-[11px] space-y-0.5"
+                            className="p-2.5 rounded-[10px] bg-subtle border border-line text-[11px] space-y-0.5"
                           >
                             <div className="flex items-center justify-between gap-2">
-                              <span className="font-semibold text-slate-200 truncate">{r.title}</span>
+                              <span className="font-semibold text-ink-primary truncate">{r.title}</span>
                               <span
                                 className={`px-1.5 py-0.5 rounded text-[9px] uppercase font-bold shrink-0 ${
                                   r.source_type === 'uploaded_document'
-                                    ? 'bg-emerald-500/15 text-emerald-300'
-                                    : 'bg-purple-500/15 text-purple-300'
+                                    ? 'bg-status-success-bg text-status-success-text'
+                                    : 'bg-accent-soft text-accent'
                                 }`}
                               >
                                 {r.source_type === 'uploaded_document' ? 'Document' : 'Study Tip'}
                               </span>
                             </div>
-                            {r.description && <p className="text-slate-400 line-clamp-2">{r.description}</p>}
+                            {r.description && <p className="text-ink-secondary line-clamp-2">{r.description}</p>}
                           </div>
                         ))}
                       </div>
                     </div>
                   )}
 
-                  {/* Latency & Provider Telemetry (Subtle) */}
+                  {/* Latency & Provider Telemetry */}
                   {msg.latency && msg.latency > 0 && (
-                    <div className="text-[10px] text-slate-500 flex items-center justify-between pt-1">
+                    <div className="text-[11px] text-ink-secondary flex items-center justify-between pt-1">
                       <span>Generated via {msg.provider || 'local model'}</span>
                       <span>~{(msg.latency / 1000).toFixed(2)}s</span>
                     </div>
@@ -391,7 +392,7 @@ export const TutorChat: React.FC = () => {
             </div>
 
             {msg.sender === 'user' && (
-              <div className="h-8 w-8 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-300 shrink-0 mt-1 shadow">
+              <div className="h-8 w-8 rounded-[10px] bg-subtle border border-line flex items-center justify-center text-ink-primary shrink-0 mt-1">
                 <User className="h-4 w-4" />
               </div>
             )}
@@ -401,14 +402,16 @@ export const TutorChat: React.FC = () => {
         {/* Thinking Indicator */}
         {isThinking && (
           <div className="flex items-start gap-3.5">
-            <div className="h-8 w-8 rounded-xl bg-indigo-600 flex items-center justify-center text-white shrink-0 mt-1 animate-pulse shadow">
+            <div className="h-8 w-8 rounded-[10px] lf-gradient-primary flex items-center justify-center text-white shrink-0 mt-1 animate-pulse">
               <Bot className="h-4 w-4" />
             </div>
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl rounded-tl-none p-4 text-xs text-slate-300 flex items-center gap-3 shadow-xl">
+            <div className="lf-card rounded-tl-none p-4 text-xs text-ink-secondary flex items-center gap-3">
               <Spinner size="sm" />
               <div className="space-y-0.5">
-                <p className="font-semibold text-indigo-300">Evaluating inquiry & course grounding...</p>
-                <p className="text-[11px] text-slate-500">Retrieving syllabus evidence passages and formulating Socratic response</p>
+                <p className="font-semibold text-brand">Evaluating inquiry &amp; course grounding...</p>
+                <p className="text-[11px] text-ink-secondary">
+                  Retrieving syllabus evidence passages and formulating Socratic response
+                </p>
               </div>
             </div>
           </div>
@@ -420,8 +423,8 @@ export const TutorChat: React.FC = () => {
       {/* Dynamic Suggested Question Chips */}
       {suggestedQuestions.length > 0 && !isThinking && (
         <div className="pt-1">
-          <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-400 mb-1.5">
-            <Sparkles className="h-3 w-3 text-indigo-400" />
+          <div className="flex items-center gap-1.5 text-xs font-medium text-ink-secondary mb-1.5">
+            <Sparkles className="h-3.5 w-3.5 text-accent" />
             <span>Suggested Inquiries:</span>
           </div>
           <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs no-scrollbar">
@@ -430,9 +433,9 @@ export const TutorChat: React.FC = () => {
                 key={idx}
                 type="button"
                 onClick={() => handleSend(prompt)}
-                className="shrink-0 px-3 py-1.5 rounded-full bg-slate-900 hover:bg-indigo-600/20 text-slate-300 hover:text-indigo-300 border border-slate-800 hover:border-indigo-500/40 transition-colors text-left flex items-center gap-1.5"
+                className="shrink-0 px-3 py-1.5 rounded-full bg-surface hover:bg-hoverbg text-ink-primary hover:text-brand border border-line hover:border-brand-soft-border transition-colors text-left flex items-center gap-1.5 shadow-sm"
               >
-                <HelpCircle className="h-3 w-3 text-indigo-400 shrink-0" />
+                <HelpCircle className="h-3.5 w-3.5 text-accent shrink-0" />
                 <span className="truncate max-w-[280px]">{prompt}</span>
               </button>
             ))}
@@ -455,15 +458,15 @@ export const TutorChat: React.FC = () => {
           placeholder={
             activeCourse
               ? `Ask a question about ${activeCourse.title} (e.g. 'Can you explain this concept with an analogy?')`
-              : "Ask your AI tutor anything about your learning materials..."
+              : 'Ask your AI tutor anything about your learning materials...'
           }
           disabled={isThinking}
-          className="w-full bg-slate-900/90 border border-slate-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-2xl py-3.5 pl-4 pr-12 text-xs md:text-sm text-white placeholder-slate-500 focus:outline-none shadow-xl"
+          className="lf-control w-full rounded-[12px] py-3.5 pl-4 pr-12 text-sm shadow-card"
         />
         <button
           type="submit"
           disabled={!inputQuestion.trim() || isThinking}
-          className="absolute right-2.5 top-3.5 p-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-md shadow-indigo-600/30"
+          className="absolute right-2.5 top-3.5 p-2 rounded-[10px] bg-brand text-white hover:bg-brand-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           title="Send inquiry"
         >
           <Send className="h-4 w-4" />
