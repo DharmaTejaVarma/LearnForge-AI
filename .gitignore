@@ -59,3 +59,6 @@ backend/test_artifacts/
 # OS
 .DS_Store
 Thumbs.db
+
+# Launcher dependency stamps
+.deps_installed

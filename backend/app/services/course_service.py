@@ -481,8 +481,8 @@ class CourseService:
                                 .join(Chapter, Topic.chapter_id == Chapter.id)
                                 .where(Chapter.course_id == job_row.course_id, Lesson.generation_status == "ready")
                             )
-                            total_cnt = int(tot_res.scalar() or 0)
-                            ready_cnt = int(rdy_res.scalar() or 0)
+                            total_cnt = tot_res.scalar() or 0
+                            ready_cnt = rdy_res.scalar() or 0
                             job_row.status = "completed"
                             job_row.completed_items = ready_cnt
                             job_row.total_items = total_cnt or job_row.total_items
@@ -1134,7 +1134,9 @@ class CourseService:
                     lesson.generation_status = "generating"
                     await db.commit()
                     res = await db.execute(query)
-                    lesson = res.scalars().first()
+                    refreshed_lesson = res.scalars().first()
+                    if refreshed_lesson is not None:
+                        lesson = refreshed_lesson
                 await LessonJobService.enqueue_lesson_job(
                     course_id=lesson.topic.chapter.course_id,
                     lesson_id=lesson_id,
@@ -1314,7 +1316,9 @@ class CourseService:
                     await db.delete(old_ex)
             await db.commit()
             res = await db.execute(query)
-            lesson = res.scalars().first()
+            refreshed_lesson = res.scalars().first()
+            if refreshed_lesson is not None:
+                lesson = refreshed_lesson
 
         if "pytest" in sys.modules:
             lesson = await CourseService._populate_lesson_record(db, lesson, user_id)
@@ -1574,7 +1578,7 @@ class CourseService:
                 lesson_id=lesson_id,
                 user_id=user_id,
                 content=req.content if req.content is not None else "",
-                is_bookmarked=bool(req.is_bookmarked) if req.is_bookmarked is not None else False,
+                is_bookmarked=req.is_bookmarked if req.is_bookmarked is not None else False,
             )
             db.add(note)
         else:
@@ -1729,7 +1733,7 @@ class CourseService:
 
         for q in questions:
             qid = str(q.get("id"))
-            selected = str(req.answers.get(qid, "")).strip()
+            selected = req.answers.get(qid, "").strip()
             expected = str(q.get("correct_answer", "")).strip()
             ok = bool(selected) and selected.lower() == expected.lower()
             if ok:

@@ -1,0 +1,3 @@
+# Pyrefly configuration: prioritize `backend/` so `app.*` imports inside
+# `backend/app/` resolve to `backend/app/` rather than the root `app/` launcher package.
+search-path = ["backend", "."]

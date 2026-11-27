@@ -1,0 +1,2 @@
+# Pyrefly configuration for backend package imports (`from app.* import ...`)
+search-path = ["."]
